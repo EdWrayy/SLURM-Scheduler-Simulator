@@ -1,0 +1,223 @@
+import pandas as pd
+from pathlib import Path
+from datetime import datetime
+
+class JobEvent():
+    def __init__(self, job, action, time):
+        self.job = job
+        self.time = time
+        self.action = action
+
+
+class Job:
+    def __init__(self, id, nodes_required, CPUs_required, GPUs_required, memory_required, start_time, end_time, real_node_selection=None) :
+        self.id = id 
+        self.nodes_required = nodes_required
+        self.CPUs_required = CPUs_required
+        self.GPUs_required = GPUs_required
+        self.memory_required = memory_required
+        self.start_time = start_time
+        self.end_time = end_time
+        self.node_utilisation = {}
+        self.real_node_selection = real_node_selection 
+
+
+def parse_alloc_tres(alloc_tres):
+    """
+    Parse AllocTRES such as:
+      billing=4,cpu=4,gres/gpu=1,mem=30720M,node=1
+
+    Returns (cpus, gpus, memory_mb).
+    """
+    cpus = None
+    gpus = 0
+    mem_mb = None
+
+    if pd.isna(alloc_tres):
+        return cpus, gpus, mem_mb
+
+    parts = str(alloc_tres).split(",")
+    for part in parts:
+        if "=" not in part:
+            continue
+        key, val = part.split("=", 1)
+        key = key.strip()
+        val = val.strip()
+
+        if key == "cpu":
+            cpus = int(val)
+        elif key == "mem":
+            mem_mb = int(val.rstrip("M"))
+        elif key == "gpu" or key.startswith("gres/gpu"):
+            gpus = int(val)
+
+    return cpus, gpus, mem_mb
+
+
+def expand_node_list(node_list):
+    """
+    Expand Slurm nodelist expressions such as:
+      ruby[053-054,056,058]
+    into:
+      ['ruby053', 'ruby054', 'ruby056', 'ruby058']
+
+    Also handles simple names such as 'ruby053' or multiple groups
+    like 'ruby[001-003],swarma[010-011]'.
+    """
+
+    if not node_list or node_list == "":
+        return None
+    
+    if '[' in node_list:
+        name, values = node_list.split('[')
+        values = values.rstrip(']')
+        bounds = values.split(',')
+        nodes = []
+        for bound in bounds:
+            if not '-' in bound:
+                nodes.append(name + bound)
+                continue
+            lb, ub = bound.split('-')
+            pad = len(lb)
+            lower_bound, upper_bound = int(lb), int(ub)
+            for i in range(upper_bound - lower_bound + 1):
+                n = lower_bound + i
+                nodes.append(name + str(n).zfill(pad))
+        return nodes
+    else:
+        return [node_list] #Just a single numbered node
+    
+
+
+def load_job_events(df):
+
+    """
+    Given a dataframe containing our accounting logs, we will convert it to events (start job and end job).
+    We will also remove any unnecessary or invalid rows.
+    """
+
+    df["Start"] = pd.to_datetime(df["Start"], errors="coerce")
+    df["End"] = pd.to_datetime(df["End"], errors="coerce")
+
+    events = []
+
+    for _, row in df.iterrows():
+        job_id = str(row["JobID"])
+        nodes_required = int(row["AllocNodes"]) if not pd.isna(row["AllocNodes"]) else 0
+        cpus_required, gpus_required, memory_required = parse_alloc_tres(row.get("AllocTRES", None))
+
+        node_list_value = row.get("NodeList", None)
+        if pd.isna(node_list_value) or str(node_list_value).strip().lower() == "none assigned":
+            real_selected_nodes = None
+        else:
+            real_selected_nodes = expand_node_list(str(node_list_value))
+
+        start_time = row["Start"]
+        end_time = row["End"]
+
+        job = Job(
+            id=job_id,
+            nodes_required=nodes_required,
+            CPUs_required=cpus_required,
+            GPUs_required=gpus_required,
+            memory_required=memory_required,
+            start_time=start_time,
+            end_time=end_time,
+            real_node_selection=real_selected_nodes,
+        )
+
+        events.append(JobEvent(job=job, action="start", time=start_time))
+        events.append(JobEvent(job=job, action="finish", time=end_time))
+
+    events.sort(key=lambda ev: ev.time)
+    return events
+
+
+def load_config(config_file="config.txt"):
+    """Load configuration from config file"""
+    config = {}
+    with open(config_file, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            if '=' in line:
+                key, value = line.split('=', 1)
+                config[key.strip()] = value.strip()
+    return config
+
+
+def read_slurm_logs(input_directory):
+    """Read all pipe-delimited .txt files from input directory into a single dataframe"""
+    input_path = Path(input_directory)
+
+    if not input_path.exists():
+        raise FileNotFoundError(f"Input directory not found: {input_directory}")
+
+    txt_files = list(input_path.glob("*.txt"))
+
+    if not txt_files:
+        raise FileNotFoundError(f"No .txt files found in {input_directory}")
+
+    print(f"Found {len(txt_files)} .txt files in {input_directory}")
+
+    required_columns = ['AllocTRES', 'AllocNodes', 'JobID', 'Start', 'End']
+
+    dfs = []
+    for txt_file in txt_files:
+        print(f"Reading {txt_file.name}...")
+        df = pd.read_csv(txt_file, sep='|', engine='python', usecols=required_columns)
+
+        # Drop any .batch, .extern or .number rows
+        df = df[~df['JobID'].astype(str).str.contains('.', regex=False)]
+
+        initial_row_count = len(df)
+
+        # Drop rows with pandas NaN/null values (empty cells)
+        for column in df.columns:
+            mask = df[column].isna()
+            dropped_count = mask.sum()
+            if dropped_count > 0:
+                dropped_rows = df[mask]
+                print(f"  Dropped {dropped_count} row(s) from {txt_file.name} due to NaN/null value in column '{column}':")
+                for _, row in dropped_rows.iterrows():
+                    print(f"    JobID: {row['JobID']}")
+                df = df[~mask]
+
+        # Drop rows containing "Unknown", "NaN", or "None" as string values (case-insensitive)
+        invalid_values = ['unknown', 'nan', 'none']
+        for column in df.columns:
+            for invalid_value in invalid_values:
+                mask = df[column].astype(str).str.lower().str.strip() == invalid_value
+                dropped_count = mask.sum()
+                if dropped_count > 0:
+                    dropped_rows = df[mask]
+                    print(f"  Dropped {dropped_count} row(s) from {txt_file.name} due to '{invalid_value}' string value in column '{column}':")
+                    for _, row in dropped_rows.iterrows():
+                        print(f"    JobID: {row['JobID']}, {column}: {row[column]}")
+                    df = df[~mask]
+
+        final_row_count = len(df)
+        total_dropped = initial_row_count - final_row_count
+        if total_dropped > 0:
+            print(f"  Total rows dropped from {txt_file.name}: {total_dropped} (from {initial_row_count} to {final_row_count})")
+
+        dfs.append(df)
+
+    combined_df = pd.concat(dfs, ignore_index=True)
+
+    return combined_df
+
+
+if __name__ == "__main__":
+    config = load_config("config.txt")
+    input_directory = config.get('input_directory')
+
+    df = read_slurm_logs(input_directory)
+
+    print(f"\nDataFrame shape: {df.shape}")
+    print(f"Columns: {len(df.columns)}")
+    print(f"\nFirst 5 rows:")
+    print(df.head())
+    print(df.columns.tolist())
+
