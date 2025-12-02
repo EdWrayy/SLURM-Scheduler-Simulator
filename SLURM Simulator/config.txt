@@ -1,0 +1,66 @@
+# SLURM Simulation Configuration File
+
+# Cluster Settings
+cluster_name = iridis_x
+
+# File Paths
+nodes_config_file = nodes_config.txt
+input_jobs_file = slurm_accounting_full_year.parquet
+output_log_file = simulation_log_full_year.parquet
+
+# Strategies
+# Node Selection Strategy: CopyRealNodeSelection, FirstFitNodeSelection
+node_selection_strategy = CopyRealNodeSelection
+
+# Resource Distribution Strategy: DefaultResourceDistribution
+resource_distribution_strategy = DefaultResourceDistribution
+
+
+
+
+# PHYSICAL NODES
+# Format:
+# node_type, config_order, node_range, num_nodes,
+# cpus_per_node, gpus_per_node, gpu_type,
+# memory_mb, boards, sockets, cores_per_socket, threads_per_core
+
+node = ruby,     0, ruby[001-088],     88, 64, 0, none,      240000, 1, 2, 32, 1
+node = swarmh,   1, swarmh[1001-1002],  2, 192, 8, h100swarm, 1900000, 1, 2, 48, 2
+node = swarma,   2, swarma[1001-1005],  5, 96, 4, a100swarm,  900000, 1, 2, 24, 2
+node = rose,     3, rose[01-13],       13, 48, 2, a100,       500000, 1, 2, 24, 1
+node = swarml4,  4, swarml4[01-03],     3, 96, 7, l4swarm,    900000, 1, 2, 24, 2
+node = ecsai,    5, ecsai[01-06],       6, 96, 7, l4swarm,    900000, 1, 2, 24, 2
+node = cotton,   6, cotton[01-02],      2, 48, 8, l4,         750000, 1, 2, 24, 1
+node = coral,  7, coral[01],            1, 48, 8, l40,        750000, 1, 2, 24, 1
+node = blossom,  8, blossom[01-04],     4, 48, 4, h200,       1500000, 1, 2, 24, 1
+node = cherry, 9, cherry[01],           1, 128, 8, mi300x,    2300000, 1, 2, 64, 1
+node = flamingo,10, flamingo[01-02],    2, 48, 2, h200,       750000, 1, 2, 24, 1
+
+
+# PARTITIONS - for implementing QoS and other filters
+partition = amd, ruby[001-074]
+partition = amd_student, ruby[001-074]
+partition = amd_dev, ruby[001-074]
+partition = amd_serial, ruby[075-088]
+
+partition = maths_a100, rose01
+partition = scavenger_mathsa100, rose01
+partition = a100, rose[02-13]
+partition = a100_dev, rose[11,13]
+
+partition = swarm_h100, swarmh[1001-1002]
+partition = scavenger_8h100, swarmh[1001-1002]
+
+partition = swarm_a100, swarma[1001-1005]
+partition = scavenger_4a100, swarma[1001-1005]
+
+partition = swarm_l4, swarml4[01-03]
+partition = scavenger_l4, swarml4[01-03], ecsai[01-06]
+
+partition = ecsstudents_l4, ecsai[01-06]
+
+partition = l4, cotton[01-02]
+partition = l40, coral01
+partition = quad_h200, blossom[01-04]
+partition = mi300x, cherry01
+partition = dual_h200, flamingo[01-02]
