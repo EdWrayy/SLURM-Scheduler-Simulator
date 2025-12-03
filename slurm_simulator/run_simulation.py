@@ -1,23 +1,21 @@
-from slurm_simulator import SlurmSimulation, Node, Job, DefaultResourceDistribution, CopyRealNodeSelection
+from .slurm_simulator import SlurmSimulation, Node, DefaultResourceDistribution, CopyRealNodeSelection
+from common.models import Job, JobEvent
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
 import pyarrow.parquet as pq
 import pyarrow as pa
 
-class JobEvent():
-    def __init__(self, job, action, time):
-        self.job = job
-        self.time = time
-        self.action = action
-
 
 
 def load_config(config_file="config.txt"):
     """Load configuration from config file"""
+    here = Path(__file__).parent
+    path = here / config_file
+    
     config = {}
     node_list = []
-    with open(config_file, 'r') as f:
+    with open(path, 'r') as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith('#'):

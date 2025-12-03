@@ -1,3 +1,6 @@
+from common.models import Job
+
+
 class Node:
     def __init__(self, name, id, list_position, total_CPUs, total_GPUs, total_memory, GPU_type=None):
         self.name = name
@@ -21,21 +24,6 @@ class Node:
         self.CPUs_in_use -= CPUs_required
         self.GPUs_in_use -= GPUs_required
         self.memory_in_use -= memory_required
-        
-
-
-
-class Job:
-    def __init__(self, id, nodes_required, CPUs_required, GPUs_required, memory_required, start_time, end_time, real_node_selection=None) :
-        self.id = id 
-        self.nodes_required = nodes_required
-        self.CPUs_required = CPUs_required
-        self.GPUs_required = GPUs_required
-        self.memory_required = memory_required
-        self.start_time = start_time
-        self.end_time = end_time
-        self.node_utilisation = {}
-        self.real_node_selection = real_node_selection #Exclusively for copy real node selection simulation, can be ignored otherwise
 
 
 class NodeSelectionStrategy:
