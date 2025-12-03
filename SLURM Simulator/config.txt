@@ -5,8 +5,11 @@ cluster_name = iridis_x
 
 # File Paths
 nodes_config_file = nodes_config.txt
-input_jobs_file = slurm_accounting_full_year.parquet
-output_log_file = simulation_log_full_year.parquet
+input_events = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\parquet-input-logs\2024-logs.parquet
+output_events = output_events.parquet
+output_nodes = output_nodes.parquet
+output_log = simulation.log
+output_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\parquet-sim-outputs
 
 # Strategies
 # Node Selection Strategy: CopyRealNodeSelection, FirstFitNodeSelection

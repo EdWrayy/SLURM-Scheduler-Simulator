@@ -140,30 +140,69 @@ class DefaultResourceDistribution(ResourceDistributionStrategy):
 
 
 class SlurmSimulation:
-    def __init__(self, cluster_name, node_list, node_selection_strategy, resource_distribution_strategy):
+    def __init__(self, cluster_name, node_list, node_selection_strategy, resource_distribution_strategy, log_file=None):
         self.cluster_name = cluster_name
         self.node_list = node_list
         self.node_selection_strategy = node_selection_strategy
         self.resource_distribution_strategy = resource_distribution_strategy
         self.job_tracker = {}
+        self.stats = {
+            'placed': 0,
+            'failed_placement': 0,
+            'failed_node_missing': 0,
+            'released': 0,
+            'failed_release': 0
+        }
+        self.log_file = log_file
 
+    def _log(self, message):
+        """Write message to log file and print to console"""
+        print(message)
+        if self.log_file:
+            with open(self.log_file, 'a') as f:
+                f.write(message + "\n")
 
     def place_job(self, job):
-        selected_nodes = self.node_selection_strategy.select_nodes(job, self.node_list)
-        if not selected_nodes :
-            raise Exception("Insufficient Capacity to Place Job!")
-        resource_distribution_record = self.resource_distribution_strategy.allocate_resources(job, selected_nodes)
-        self.job_tracker[job.id] = resource_distribution_record
+        try:
+            selected_nodes = self.node_selection_strategy.select_nodes(job, self.node_list)
+            if not selected_nodes:
+                self.stats['failed_placement'] += 1
+                self._log(f"[FAIL PLACE] Job {job.id}: No capacity - needs {job.nodes_required} nodes, {job.CPUs_required} CPUs, {job.GPUs_required} GPUs, {job.memory_required} MB")
+                return False
 
-    
+            resource_distribution_record = self.resource_distribution_strategy.allocate_resources(job, selected_nodes)
+            self.job_tracker[job.id] = resource_distribution_record
+            self.stats['placed'] += 1
+            self._log(f"[SUCCESS PLACE] Job {job.id}: Placed on {[n.name for n in selected_nodes]}")
+            return True
+
+        except KeyError as e:
+            self.stats['failed_node_missing'] += 1
+            self._log(f"[FAIL PLACE] Job {job.id}: Node {e} not found in cluster (real_node_selection: {job.real_node_selection})")
+            return False
+        except Exception as e:
+            self.stats['failed_placement'] += 1
+            self._log(f"[FAIL PLACE] Job {job.id}: {type(e).__name__}: {e}")
+            return False
+
+
     def release_job(self, id):
         resource_distribution_record = self.job_tracker.pop(id, None)
         if resource_distribution_record is None:
-            print("Tried to release a non-existent job with id: " + id)
-            return
-        
-        for node,(cpus, gpus, mem) in resource_distribution_record.items():
+            self.stats['failed_release'] += 1
+            self._log(f"[FAIL RELEASE] Job {id}: Never placed or already released")
+            return False
+
+        for node, (cpus, gpus, mem) in resource_distribution_record.items():
             node.release_job(cpus, gpus, mem)
+
+        self.stats['released'] += 1
+        self._log(f"[SUCCESS RELEASE] Job {id}: Released from {len(resource_distribution_record)} node(s)")
+        return True
+
+    def get_stats(self):
+        """Return simulation statistics"""
+        return self.stats.copy()
 
     def get_current_state(self):
         """Return current cluster state for external logging"""

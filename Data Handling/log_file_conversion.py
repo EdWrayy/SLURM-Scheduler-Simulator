@@ -1,6 +1,5 @@
 import pandas as pd
 from pathlib import Path
-from datetime import datetime
 
 class JobEvent():
     def __init__(self, job, action, time):
@@ -161,7 +160,7 @@ def read_slurm_logs(input_directory):
 
     print(f"Found {len(txt_files)} .txt files in {input_directory}")
 
-    required_columns = ['AllocTRES', 'AllocNodes', 'JobID', 'Start', 'End']
+    required_columns = ['AllocTRES', 'AllocNodes', 'JobID', 'Start', 'End', 'NodeList']
 
     dfs = []
     for txt_file in txt_files:
@@ -206,18 +205,59 @@ def read_slurm_logs(input_directory):
 
     combined_df = pd.concat(dfs, ignore_index=True)
 
+    # Convert JobID to integer after all filtering is complete
+    combined_df['JobID'] = combined_df['JobID'].astype(int)
+
     return combined_df
 
 
 if __name__ == "__main__":
     config = load_config("config.txt")
     input_directory = config.get('input_directory')
+    output_directory = config.get('output_directory', 'output')
+    output_filename = config.get('output_filename', 'slurm_logs')
 
     df = read_slurm_logs(input_directory)
 
     print(f"\nDataFrame shape: {df.shape}")
-    print(f"Columns: {len(df.columns)}")
-    print(f"\nFirst 5 rows:")
     print(df.head())
-    print(df.columns.tolist())
+
+    events = load_job_events(df)
+
+
+    events_df = pd.DataFrame([
+    {
+        'job_id': event.job.id,
+        'nodes_required': event.job.nodes_required,
+        'CPUs_required': event.job.CPUs_required,
+        'GPUs_required': event.job.GPUs_required,
+        'memory_required': event.job.memory_required,
+        'start_time': event.job.start_time,
+        'end_time': event.job.end_time,
+        'real_node_selection': str(event.job.real_node_selection) if event.job.real_node_selection else None,
+        'action': event.action,
+        'time': event.time
+    }
+    for event in events])
+
+    print(f"\nEvents shape before deduplication: {events_df.shape}")
+
+    # Remove duplicate events (same job_id and action)
+    initial_count = len(events_df)
+    events_df = events_df.drop_duplicates(subset=['job_id', 'action'], keep='first')
+    duplicates_removed = initial_count - len(events_df)
+
+    print(f"Removed {duplicates_removed} duplicate events")
+    print(f"Events shape after deduplication: {events_df.shape}")
+    print(f"\nFirst 5 rows:")
+    print(events_df.head())
+
+    # Save to parquet
+    output_path = Path(output_directory)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    output_file = output_path / f"{output_filename}.parquet"
+
+    events_df.to_parquet(output_file, index=False, engine='pyarrow')
+    print(f"\nEvents dataframe saved to: {output_file}")
 
