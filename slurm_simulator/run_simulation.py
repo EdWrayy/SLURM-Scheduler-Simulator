@@ -121,19 +121,21 @@ def run_simulation(config):
         'resource_distribution_strategy'
     )
 
-    # Setup output directory and file paths
-    output_directory = config.get('output_directory', 'output')
+    # Setup output directories and file paths
+    output_events_directory = Path(config.get('output_events_directory', 'output/events'))
+    output_nodes_directory = Path(config.get('output_nodes_directory', 'output/nodes'))
+    output_log_directory = Path(config.get('output_log_directory', 'output'))
 
-    output_path = Path(output_directory)
-    output_path.mkdir(parents=True, exist_ok=True)
+    # Create directories
+    output_events_directory.mkdir(parents=True, exist_ok=True)
+    output_nodes_directory.mkdir(parents=True, exist_ok=True)
+    output_log_directory.mkdir(parents=True, exist_ok=True)
 
     output_events_filename = config.get('output_events', 'simulation_log_events.parquet')
     output_nodes_filename = config.get('output_nodes', 'simulation_log_nodes.parquet')
     output_log_filename = config.get('output_log', 'simulation.log')
 
-    output_events = output_path / output_events_filename
-    output_nodes = output_path / output_nodes_filename
-    output_log = output_path / output_log_filename
+    output_log = output_log_directory / output_log_filename
 
     # Initialize simulation with logging
     slurm_sim = SlurmSimulation(
@@ -147,8 +149,37 @@ def run_simulation(config):
     input_events = config.get('input_events')
     events_df = pd.read_parquet(input_events)
 
+    # Add year-month column for grouping
+    events_df['time'] = pd.to_datetime(events_df['time'])
+    events_df['year_month'] = events_df['time'].dt.to_period('M')
+
     event_records = []
     node_records = []
+    current_month = None
+    months_processed = []
+
+    def save_monthly_data(month_str, event_recs, node_recs):
+        """Save data for a specific month and clear the buffers"""
+        if not event_recs:
+            return
+
+        print(f"\n  Saving data for {month_str}...")
+
+        # Create monthly output filenames
+        events_path = Path(output_events_filename)
+        nodes_path = Path(output_nodes_filename)
+        events_monthly = output_events_directory / f"{events_path.stem}_{month_str}{events_path.suffix}"
+        nodes_monthly = output_nodes_directory / f"{nodes_path.stem}_{month_str}{nodes_path.suffix}"
+
+        # Convert to tables and write
+        events_table = pa.Table.from_pandas(pd.DataFrame(event_recs))
+        nodes_table = pa.Table.from_pandas(pd.DataFrame(node_recs))
+
+        pq.write_table(events_table, events_monthly)
+        pq.write_table(nodes_table, nodes_monthly)
+
+        print(f"  Saved {len(event_recs):,} events and {len(node_recs):,} node records")
+        months_processed.append(month_str)
 
     print(f"Starting simulation with {len(events_df):,} events...")
     for i, row in events_df.iterrows():
@@ -163,6 +194,21 @@ def run_simulation(config):
         real_node_selection=eval(row['real_node_selection']) if pd.notna(row['real_node_selection']) else None
         )
         event = JobEvent(job, row['action'], row['time'])
+
+        # Check if we've moved to a new month
+        event_month = str(row['year_month'])
+        if current_month is None:
+            current_month = event_month
+            print(f"\nProcessing month: {current_month}")
+        elif current_month != event_month:
+            # Save previous month's data
+            save_monthly_data(current_month, event_records, node_records)
+
+            # Reset for new month
+            event_records = []
+            node_records = []
+            current_month = event_month
+            print(f"\nProcessing month: {current_month}")
 
         if event.action == 'start':
             slurm_sim.place_job(event.job)
@@ -196,11 +242,11 @@ def run_simulation(config):
                 'memory_utilisation': n_state['memory_in_use'] / n_state['total_memory'] if n_state['total_memory'] > 0 else 0,
             })
 
-    events_table = pa.Table.from_pandas(pd.DataFrame(event_records))
-    nodes_table = pa.Table.from_pandas(pd.DataFrame(node_records))
+    # Save the last month's data
+    if event_records:
+        save_monthly_data(current_month, event_records, node_records)
 
-    pq.write_table(events_table, output_events)
-    pq.write_table(nodes_table, output_nodes)
+    print(f"\n\nSaved output for {len(months_processed)} months: {', '.join(months_processed)}")
 
     # Print simulation statistics
     stats = slurm_sim.get_stats()

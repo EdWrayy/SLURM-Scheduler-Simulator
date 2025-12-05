@@ -1,4 +1,4 @@
 # File Paths
-input_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\logs-txt-2024
+input_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\logs-txt
 output_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\parquet-input-logs
-output_filename = 2024-logs
+output_filename = entire-history-logs

@@ -1,13 +1,13 @@
 # Data Analysis Configuration File
 
 # File Paths
-input_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\parquet-sim-outputs
-input_events = output_events.parquet
-input_nodes = output_nodes.parquet
+# Directories containing monthly parquet files
+input_events_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\parquet-sim-outputs\entire_history\events
+input_nodes_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\parquet-sim-outputs\entire_history\nodes
 
 # Visualization Options
 # Show a vertical line marking the latest job submission time
 show_last_job_submission_line = true
 # Custom date for the marker (leave empty to auto-calculate from data)
 # Format: DD/MM/YYYY  HH:MM:SS (e.g., 31/12/2024  23:56:15)
-last_job_submission_date = 31/12/2024  23:56:15
+last_job_submission_date = 31/10/2025  23:33:50

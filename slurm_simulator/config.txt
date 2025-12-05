@@ -5,11 +5,14 @@ cluster_name = iridis_x
 
 # File Paths
 nodes_config_file = nodes_config.txt
-input_events = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\parquet-input-logs\2024-logs.parquet
-output_events = output_events.parquet
-output_nodes = output_nodes.parquet
-output_log = simulation.log
-output_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\parquet-sim-outputs
+input_events = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\parquet-input-logs\entire-history-logs.parquet
+output_events = entire_history_output_events.parquet
+output_nodes = entire_history_output_nodes.parquet
+output_log = entire_history_simulation.log
+# Separate directories for events and nodes monthly outputs
+output_events_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\parquet-sim-outputs\events
+output_nodes_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\parquet-sim-outputs\nodes
+output_log_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\parquet-sim-outputs
 
 # Strategies
 # Node Selection Strategy: CopyRealNodeSelection, FirstFitNodeSelection

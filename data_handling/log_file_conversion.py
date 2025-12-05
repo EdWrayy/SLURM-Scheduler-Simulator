@@ -117,7 +117,22 @@ def load_job_events(df):
 def load_config(config_file="config.txt"):
     """Load configuration from config file"""
     config = {}
-    with open(config_file, 'r') as f:
+    # Try to find config file in multiple locations
+    config_paths = [
+        config_file,  # Current directory
+        Path(__file__).parent / config_file,  # Same directory as this script
+    ]
+
+    config_path = None
+    for path in config_paths:
+        if Path(path).exists():
+            config_path = path
+            break
+
+    if config_path is None:
+        raise FileNotFoundError(f"Config file '{config_file}' not found in any of: {config_paths}")
+
+    with open(config_path, 'r') as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith('#'):
@@ -147,7 +162,8 @@ def read_slurm_logs(input_directory):
     dfs = []
     for txt_file in txt_files:
         print(f"Reading {txt_file.name}...")
-        df = pd.read_csv(txt_file, sep='|', engine='python', usecols=required_columns)
+        with open(txt_file, 'r', encoding='utf-8', errors='ignore') as f:
+            df = pd.read_csv(f, sep='|', engine='python', usecols=required_columns, on_bad_lines='skip', quoting=3)
 
         # Drop any .batch, .extern or .number rows
         df = df[~df['JobID'].astype(str).str.contains('.', regex=False)]
