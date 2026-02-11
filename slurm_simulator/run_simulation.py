@@ -1,5 +1,7 @@
-from .slurm_simulator import SlurmSimulation, Node, DefaultResourceDistribution, CopyRealNodeSelection
+from .slurm_simulator import SlurmSimulation, Node, DefaultResourceDistribution, CopyRealNodeSelection, ActiveOnlyPowerModel, LinearWithIdlePowerModel, LinearWithSleepPowerModel
+from.power_constants import NODE_HARDWARE, CPU_POWER, GPU_POWER, RAM_POWER
 from common.models import Job, JobEvent
+from common.config import load_config
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
@@ -7,35 +9,6 @@ import pyarrow.parquet as pq
 import pyarrow as pa
 
 
-
-def load_config(config_file="config.txt"):
-    """Load configuration from config file"""
-    here = Path(__file__).parent
-    path = here / config_file
-    
-    config = {}
-    node_list = []
-    with open(path, 'r') as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith('#'):
-                continue
-
-            if '=' in line:
-                key, value = line.split('=', 1)
-                key = key.strip()
-                value = value.strip()
-                if key == "node":
-                    _, rhs = line.split("=", 1)
-                    parts = [p.strip() for p in rhs.split(",")]
-                    node_list.append(parts)
-                elif key.startswith("partition"):
-                    pass #ignore for now
-                else:
-                    config[key.strip()] = value.strip()
-    
-    config["nodes"] = node_list
-    return config
 
 
 def get_strategy_instance(strategy_name, strategy_type):
@@ -51,13 +24,29 @@ def get_strategy_instance(strategy_name, strategy_type):
             return DefaultResourceDistribution()
         else:
             raise ValueError("Unknown Distribution Strategy")
-
+    
+    elif strategy_type == "power_model":
+        if strategy_name == "ActiveOnlyPowerModel":
+            return ActiveOnlyPowerModel()
+        elif strategy_name == "LinearWithIdlePowerModel":
+            return LinearWithIdlePowerModel()
+        elif strategy_name == "LinearWithSleepPowerModel":
+            return LinearWithSleepPowerModel()
+        else:
+            raise ValueError("Unknown Power Model")
+    
     else:
         raise ValueError("Unknown Strategy Type")
 
 
 def create_nodes(config):
     nodes = []
+
+    power_model = get_strategy_instance(
+        config['power_model'],
+        'power_model'
+    )
+
     for node_config in config["nodes"]:
         node_type = node_config[0]
         config_order = int(node_config[1])
@@ -67,6 +56,11 @@ def create_nodes(config):
         gpus = int(node_config[5])
         gpu_type = node_config[6]
         memory = int(node_config[7])
+
+        power_data = NODE_HARDWARE(node_type)
+        cpu_idle_power,cpu_max_power = CPU_POWER[power_data["cpu"]]
+        gpu_idle_power, gpu_max_power = GPU_POWER["gpu"]
+        ram_idle_power, ram_max_power = RAM_POWER["ram"]
         
         for i in range(1, num_nodes+1):
             node = Node(
@@ -76,7 +70,13 @@ def create_nodes(config):
                 total_CPUs= cpus,
                 total_GPUs=gpus,
                 total_memory=memory,
-                GPU_type=gpu_type,
+                CPU_Max_Power = cpu_max_power, 
+                GPU_Max_Power = gpu_max_power, 
+                RAM_Max_Power = ram_max_power, 
+                CPU_Idle_Power = cpu_idle_power, 
+                GPU_Idle_Power = gpu_idle_power, 
+                RAM_Idle_Power = ram_idle_power,
+                power_model = power_model
             )
             nodes.append(node)
 
@@ -98,9 +98,7 @@ def get_real_node_name(node_type, id):
         return f"{node_type}{id:03d}"
 
     elif node_type in {"swarmh", "swarma"}:
-        # prefix 100 then append id with no padding
-        return f"{node_type}100{id}"
-
+        return f"{node_type}{1000 + id:04d}"
     else:
         # pad to 2 digits
         return f"{node_type}{id:02d}"
@@ -120,6 +118,7 @@ def run_simulation(config):
         config['resource_distribution_strategy'],
         'resource_distribution_strategy'
     )
+
 
     # Setup output directories and file paths
     output_events_directory = Path(config.get('output_events_directory', 'output/events'))
@@ -157,6 +156,7 @@ def run_simulation(config):
     node_records = []
     current_month = None
     months_processed = []
+   
 
     def save_monthly_data(month_str, event_recs, node_recs):
         """Save data for a specific month and clear the buffers"""
@@ -181,6 +181,8 @@ def run_simulation(config):
         print(f"  Saved {len(event_recs):,} events and {len(node_recs):,} node records")
         months_processed.append(month_str)
 
+     
+    prev_time = None
     print(f"Starting simulation with {len(events_df):,} events...")
     for i, row in events_df.iterrows():
         job = Job(
@@ -209,6 +211,17 @@ def run_simulation(config):
             node_records = []
             current_month = event_month
             print(f"\nProcessing month: {current_month}")
+        
+        # Compute time difference since last event 
+        if prev_time is None:
+            dt = pd.NaT
+            dt_seconds = None
+        else:
+            dt = event.time - prev_time
+            dt_seconds = dt.total_seconds()
+
+        prev_time = event.time
+
 
         if event.action == 'start':
             slurm_sim.place_job(event.job)
@@ -224,7 +237,8 @@ def run_simulation(config):
             'time': event.time,
             'action': event.action,
             'job_id': event.job.id,
-            'active_jobs': state['active_jobs'],
+            'active_jobs': state['active_jobs'],          
+            'dt_seconds': dt_seconds,
         })
 
         for n_state in state['nodes']:
@@ -240,6 +254,7 @@ def run_simulation(config):
                 'CPU_utilisation': n_state['CPUs_in_use'] / n_state['total_CPUs'] if n_state['total_CPUs'] > 0 else 0,
                 'GPU_utilisation': n_state['GPUs_in_use'] / n_state['total_GPUs'] if n_state['total_GPUs'] > 0 else 0,
                 'memory_utilisation': n_state['memory_in_use'] / n_state['total_memory'] if n_state['total_memory'] > 0 else 0,
+                'power_consumption' : n_state['power_consumption']
             })
 
     # Save the last month's data
@@ -257,9 +272,7 @@ def run_simulation(config):
     return None
 
 
-if __name__ == "__main__":
-    config = load_config("config.txt")
-    simulation = run_simulation(config)
+
     
 
 

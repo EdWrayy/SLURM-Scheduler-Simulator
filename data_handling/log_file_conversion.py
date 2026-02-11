@@ -1,6 +1,7 @@
 import pandas as pd
 from pathlib import Path
-from common.models import Job, JobEvent 
+from common.models import Job, JobEvent
+from common.config import load_config
 
 
 def parse_alloc_tres(alloc_tres):
@@ -113,34 +114,6 @@ def load_job_events(df):
     events.sort(key=lambda ev: ev.time)
     return events
 
-
-def load_config(config_file="config.txt"):
-    """Load configuration from config file"""
-    config = {}
-    # Try to find config file in multiple locations
-    config_paths = [
-        config_file,  # Current directory
-        Path(__file__).parent / config_file,  # Same directory as this script
-    ]
-
-    config_path = None
-    for path in config_paths:
-        if Path(path).exists():
-            config_path = path
-            break
-
-    if config_path is None:
-        raise FileNotFoundError(f"Config file '{config_file}' not found in any of: {config_paths}")
-
-    with open(config_path, 'r') as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith('#'):
-                continue
-            if '=' in line:
-                key, value = line.split('=', 1)
-                config[key.strip()] = value.strip()
-    return config
 
 
 def read_slurm_logs(input_directory):

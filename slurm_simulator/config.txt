@@ -21,6 +21,8 @@ node_selection_strategy = CopyRealNodeSelection
 # Resource Distribution Strategy: DefaultResourceDistribution
 resource_distribution_strategy = DefaultResourceDistribution
 
+# Power Model
+power_model = ActiveOnlyPowerModel
 
 
 

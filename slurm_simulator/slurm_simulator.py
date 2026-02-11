@@ -2,28 +2,109 @@ from common.models import Job
 
 
 class Node:
-    def __init__(self, name, id, list_position, total_CPUs, total_GPUs, total_memory, GPU_type=None):
+    def __init__(self, name, id, list_position, total_CPUs, total_GPUs, total_memory, CPU_Max_Power, GPU_Max_Power, RAM_Max_Power, CPU_Idle_Power, GPU_Idle_Power, RAM_Idle_Power, power_model):
         self.name = name
         self.id = id 
         self.list_position = list_position #The position in the slurm.conf listing, relevant for resource distirbution.
+
         self.total_CPUs = total_CPUs
         self.total_GPUs = total_GPUs
         self.total_memory = total_memory
+
         self.CPUs_in_use = 0
         self.GPUs_in_use = 0
         self.memory_in_use = 0
-        self.GPU_type = GPU_type
 
+        self.CPU_MAX_Power_Consumption = CPU_Max_Power
+        self.GPU_MAX_Power_Consumption = GPU_Max_Power
+        self.RAM_MAX_Power_Consumption = RAM_Max_Power
+
+        self.CPU_IDLE_Power_Consumption = CPU_Idle_Power
+        self.GPU_IDLE_Power_Consumption = GPU_Idle_Power
+        self.RAM_IDLE_Power_Consumption = RAM_Idle_Power
+
+        self.current_power_consumption = 0
+        self.power_model = power_model
+        self._refresh_power()
+
+    def _refresh_power(self) -> None:
+        self.current_power_consumption = self.power_model.calculate_current_power_consumption(self)
 
     def run_job(self, CPUs_required, GPUs_required, memory_required):
         self.CPUs_in_use += CPUs_required
         self.GPUs_in_use += GPUs_required
         self.memory_in_use += memory_required
+        self._refresh_power()
+        
+
 
     def release_job(self, CPUs_required, GPUs_required, memory_required):
         self.CPUs_in_use -= CPUs_required
         self.GPUs_in_use -= GPUs_required
         self.memory_in_use -= memory_required
+        self._refresh_power()
+
+
+
+class NodePowerModel:
+    """
+    Base class for power model.
+    Determines how to compute a node's current power utilisation.
+    Must be stateless as all nodes share the same power model object.
+    """
+    def calculate_current_power_consumption(self, node):
+        raise NotImplementedError
+
+    
+class ActiveOnlyPowerModel(NodePowerModel):
+    """Simply assumes we only use power for the exact hardware used, no idling."""
+
+    def calculate_current_power_consumption(self, node):
+        cpu_u = node.CPUs_in_use * node.CPU_MAX_Power_Consumption
+        gpu_u = node.GPUs_in_use * node.GPU_MAX_Power_Consumption
+        mem_u = node.memory_in_use * node.RAM_MAX_Power_Consumption
+
+        return cpu_u + gpu_u + mem_u
+    
+class LinearWithIdlePowerModel(NodePowerModel):
+    """
+    Assumes that all hardware is either in use or idling if a node is powered on. 
+    Cannot power down any nodes
+    """
+    def calculate_current_power_consumption(self, node):
+        
+        cpu_u = node.CPUs_in_use * node.CPU_MAX_Power_Consumption
+        gpu_u = node.GPUs_in_use * node.GPU_MAX_Power_Consumption
+        mem_u = node.memory_in_use * node.RAM_MAX_Power_Consumption
+        
+        cpu_idle = (node.total_CPUs - node.CPUs_in_use) * node.CPU_IDLE_Power_Consumption
+        gpu_idle = (node.total_GPUs - node.GPUs_in_use) *  node.GPU_IDLE_Power_Consumption
+        mem_idle = (node.total_memory - node.memory_in_use) * node.RAM_IDLE_Power_Consumption
+
+        return cpu_u + gpu_u + mem_u + cpu_idle + gpu_idle + mem_idle
+    
+
+class LinearWithSleepPowerModel(NodePowerModel):
+    """
+    Assumes that all hardware is either in use or idling if a node is powered on. 
+    Can sleep an entire node if no jobs running on it (using no power)
+    """
+
+    def calculate_current_power_consumption(self, node):
+
+        if node.CPUs_in_use == 0 and node.GPUs_in_use == 0 and node.memory_in_use == 0:
+            return 0
+        
+        cpu_u = node.CPUs_in_use * node.CPU_MAX_Power_Consumption
+        gpu_u = node.GPUs_in_use * node.GPU_MAX_Power_Consumption
+        mem_u = node.memory_in_use * node.RAM_MAX_Power_Consumption
+        
+        cpu_idle = (node.total_CPUs - node.CPUs_in_use) * node.CPU_IDLE_Power_Consumption
+        gpu_idle = (node.total_GPUs - node.GPUs_in_use) *  node.GPU_IDLE_Power_Consumption
+        mem_idle = (node.total_memory - node.memory_in_use) * node.RAM_IDLE_Power_Consumption
+
+        return cpu_u + gpu_u + mem_u + cpu_idle + gpu_idle + mem_idle
+    
 
 
 class NodeSelectionStrategy:
@@ -31,7 +112,7 @@ class NodeSelectionStrategy:
     def select_nodes(self, job, available_nodes):
         """Returns list of nodes to place the job on"""
         raise NotImplementedError
-    
+    # TODO: Has_capacity prevents spreading job across multiple nodes, need to fix for evaluating strategies.
     def has_capacity(self, node, job):
         return (node.total_CPUs - node.CPUs_in_use >= job.CPUs_required and
                 node.total_GPUs - node.GPUs_in_use >= job.GPUs_required and
@@ -203,7 +284,8 @@ class SlurmSimulation:
                 'memory_in_use': n.memory_in_use,
                 'total_CPUs' : n.total_CPUs,
                 'total_GPUs' : n.total_GPUs,
-                'total_memory' : n.total_memory
+                'total_memory' : n.total_memory,
+                'power_consumption' : n.current_power_consumption
                 } 
             for n in self.node_list]
         }
