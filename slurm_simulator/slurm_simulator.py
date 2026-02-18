@@ -62,7 +62,8 @@ class ActiveOnlyPowerModel(NodePowerModel):
     def calculate_current_power_consumption(self, node):
         cpu_u = node.CPUs_in_use * node.CPU_MAX_Power_Consumption
         gpu_u = node.GPUs_in_use * node.GPU_MAX_Power_Consumption
-        mem_u = node.memory_in_use * node.RAM_MAX_Power_Consumption
+        mem_GB = node.memory_in_use / 1024
+        mem_u = mem_GB * node.RAM_MAX_Power_Consumption
 
         return cpu_u + gpu_u + mem_u
     
@@ -75,7 +76,8 @@ class LinearWithIdlePowerModel(NodePowerModel):
         
         cpu_u = node.CPUs_in_use * node.CPU_MAX_Power_Consumption
         gpu_u = node.GPUs_in_use * node.GPU_MAX_Power_Consumption
-        mem_u = node.memory_in_use * node.RAM_MAX_Power_Consumption
+        mem_GB = node.memory_in_use / 1024
+        mem_u = mem_GB * node.RAM_MAX_Power_Consumption
         
         cpu_idle = (node.total_CPUs - node.CPUs_in_use) * node.CPU_IDLE_Power_Consumption
         gpu_idle = (node.total_GPUs - node.GPUs_in_use) *  node.GPU_IDLE_Power_Consumption
@@ -97,7 +99,8 @@ class LinearWithSleepPowerModel(NodePowerModel):
         
         cpu_u = node.CPUs_in_use * node.CPU_MAX_Power_Consumption
         gpu_u = node.GPUs_in_use * node.GPU_MAX_Power_Consumption
-        mem_u = node.memory_in_use * node.RAM_MAX_Power_Consumption
+        mem_GB = node.memory_in_use / 1024
+        mem_u = mem_GB * node.RAM_MAX_Power_Consumption
         
         cpu_idle = (node.total_CPUs - node.CPUs_in_use) * node.CPU_IDLE_Power_Consumption
         gpu_idle = (node.total_GPUs - node.GPUs_in_use) *  node.GPU_IDLE_Power_Consumption
@@ -132,6 +135,8 @@ class CopyRealNodeSelection(NodeSelectionStrategy):
                 self.map_names_to_nodes[node.name] = node
 
         nodes = []
+        if not job.real_node_selection:
+            return nodes
         for node in job.real_node_selection:
             nodes.append(self.map_names_to_nodes[node])
         return nodes

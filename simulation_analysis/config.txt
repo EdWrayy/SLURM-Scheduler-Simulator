@@ -2,8 +2,8 @@
 
 # File Paths
 # Directories containing monthly parquet files
-input_events_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\parquet-sim-outputs\entire_history\events
-input_nodes_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\parquet-sim-outputs\entire_history\nodes
+input_events_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\parquet-sim-outputs\events
+input_nodes_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\parquet-sim-outputs\nodes
 
 # Directory for outputting report to
 output_report_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\Simulation Results

@@ -66,6 +66,20 @@ def make_plots(snapshots_df, config, events_df):
     fig.tight_layout()
     plots["utilisation_vs_time"] = fig
 
+
+    # Active-nodes utilisation (excludes powered-down nodes)
+    fig, ax = plt.subplots()
+    ax.plot(df["time"], df["active_cpu_util"], label="CPU (active)")
+    ax.plot(df["time"], df["active_gpu_util"], label="GPU (active)")
+    ax.plot(df["time"], df["active_mem_util"], label="Memory (active)")
+    add_last_start_line(ax)
+    ax.set_title("Active-nodes utilisation vs time (excludes powered-down nodes)")
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Utilisation (fraction)")
+    ax.legend()
+    fig.tight_layout()
+    plots["active_utilisation_vs_time"] = fig
+
     # Rolling mean power
     window = 50
     fig, ax = plt.subplots()

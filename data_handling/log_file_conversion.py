@@ -183,7 +183,7 @@ def read_slurm_logs(input_directory):
 
 
 if __name__ == "__main__":
-    config = load_config("config.txt")
+    config = load_config(Path(__file__).with_name("config.txt"))
     input_directory = config.get('input_directory')
     output_directory = config.get('output_directory', 'output')
     output_filename = config.get('output_filename', 'slurm_logs')

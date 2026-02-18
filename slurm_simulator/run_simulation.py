@@ -1,7 +1,6 @@
 from .slurm_simulator import SlurmSimulation, Node, DefaultResourceDistribution, CopyRealNodeSelection, ActiveOnlyPowerModel, LinearWithIdlePowerModel, LinearWithSleepPowerModel
-from.power_constants import NODE_HARDWARE, CPU_POWER, GPU_POWER, RAM_POWER
+from .power_constants import NODE_HARDWARE, CPU_POWER, GPU_POWER, RAM_POWER
 from common.models import Job, JobEvent
-from common.config import load_config
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
@@ -57,11 +56,25 @@ def create_nodes(config):
         gpu_type = node_config[6]
         memory = int(node_config[7])
 
-        power_data = NODE_HARDWARE(node_type)
-        cpu_idle_power,cpu_max_power = CPU_POWER[power_data["cpu"]]
-        gpu_idle_power, gpu_max_power = GPU_POWER["gpu"]
-        ram_idle_power, ram_max_power = RAM_POWER["ram"]
-        
+        power_data = NODE_HARDWARE[node_type]
+        cpu_p = CPU_POWER[power_data["cpu"]]
+        cpu_idle_power = cpu_p["idle_W"]
+        cpu_max_power  = cpu_p["max_W"]
+
+        gpu_type_hw = power_data["gpu"]  # can be None
+        if gpu_type_hw is None:
+            gpu_idle_power = 0.0
+            gpu_max_power  = 0.0
+        else:
+            gpu_p = GPU_POWER[gpu_type_hw]
+            gpu_idle_power = gpu_p["idle_W"]
+            gpu_max_power  = gpu_p["max_W"]
+
+        ram_type_hw = power_data["ram"]
+        ram_p = RAM_POWER[ram_type_hw]
+        ram_idle_power = ram_p["idle_W_per_GB"]
+        ram_max_power  = ram_p["max_W_per_GB"]
+                
         for i in range(1, num_nodes+1):
             node = Node(
                 name=get_real_node_name(node_type, i),

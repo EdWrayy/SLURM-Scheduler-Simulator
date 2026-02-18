@@ -1,5 +1,7 @@
-from .run_simulation import load_config, run_simulation
+from .run_simulation import run_simulation
+from pathlib import Path
+from common.config import load_config
 
 if __name__ == "__main__":
-    config = load_config("config.txt")
+    config = load_config(Path(__file__).with_name("config.txt"))
     simulation = run_simulation(config)

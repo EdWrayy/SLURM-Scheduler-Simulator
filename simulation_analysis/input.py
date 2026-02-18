@@ -18,6 +18,6 @@ def create_dataframes(events_dir, nodes_dir):
 
     node_dfs = [pd.read_parquet(f) for f in node_files]
     nodes_df = pd.concat(node_dfs, ignore_index=True)
-    nodes_df = nodes_df.sort_values("event_index").set_index("event_index", drop=False)
+    nodes_df = nodes_df.sort_values("event_index").set_index("event_index", drop=True)
     
     return events_df, nodes_df

@@ -1,9 +1,8 @@
 from pathlib import Path
 
-def load_config(config_file="config.txt"):
+def load_config(config_file):
     """Load configuration from config file"""
-    here = Path(__file__).parent
-    path = here / config_file
+    path = Path(config_file).resolve()
     
     config = {}
     node_list = []
