@@ -89,8 +89,5 @@ GPU_POWER = {
 
 
 RAM_POWER = {
-    "ddr4": {
-        "idle_W_per_GB": 0.25,
-        "max_W_per_GB": 0.5,
-    }
+    "ddr4": {"idle_W_per_GB": 0.25, "max_W_per_GB": 0.5,}
 }

@@ -1,48 +1,37 @@
 from pathlib import Path
 from datetime import datetime
-from matplotlib.backends.backend_pdf import PdfPages
-import matplotlib.pyplot as plt
+import json
 
-def write_pdf_report(config, plots, overall_metrics):
 
+def write_report(config, plots, overall_metrics):
     out_dir = Path(config["output_report_directory"])
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    pdf_path = out_dir / f"simulation_report_{timestamp}.pdf"
+    run_id = config.get("run_id")
+    if not run_id:
+        run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    title = f"Simulation Report ({timestamp})"
+    report_dir = out_dir / run_id
+    report_dir.mkdir(parents=True, exist_ok=True)
 
-    with PdfPages(pdf_path) as pdf:
+    plots_dir = report_dir / "plots"
+    plots_dir.mkdir(parents=True, exist_ok=True)
 
-        # Summary page as a figure with text
-        fig, ax = plt.subplots(figsize=(8.27, 11.69))  # A4 portrait
-        ax.axis("off")
-        ax.set_title(title, pad=20)
+    # Save plots as PNGs
+    plot_files = {}
+    for name, fig in plots.items():
+        fname = f"{name}.png"
+        fpath = plots_dir / fname
+        fig.savefig(fpath, dpi=200, bbox_inches="tight")
+        plot_files[name] = str(fpath)
 
-        lines = []
-        for k, v in overall_metrics.items():
-            if isinstance(v, float):
-                lines.append(f"{k}: {v:.6g}")
-            else:
-                lines.append(f"{k}: {v}")
+    # Write summary.json (flat dict for meta-analysis)
+    summary = dict(overall_metrics)
+    summary["run_id"] = run_id
+    summary["plot_files"] = plot_files  # optional, handy for debugging
 
-        ax.text(
-            0.02, 0.95,
-            "\n".join(lines),
-            va="top",
-            ha="left",
-            family="monospace",
-            fontsize=10
-        )
+    summary_path = report_dir / "summary.json"
+    with open(summary_path, "w", encoding="utf-8") as f:
+        json.dump(summary, f, indent=2, default=str)
 
-        fig.tight_layout()
-        pdf.savefig(fig)
-        plt.close(fig)
-
-        # Plot pages
-        for _, fig in plots.items():
-            pdf.savefig(fig)
-            plt.close(fig)
-
-    return pdf_path
+    return summary_path

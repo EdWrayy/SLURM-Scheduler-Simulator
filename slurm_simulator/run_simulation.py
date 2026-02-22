@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 import pyarrow.parquet as pq
 import pyarrow as pa
+import ast
 
 
 
@@ -117,175 +118,192 @@ def get_real_node_name(node_type, id):
         return f"{node_type}{id:02d}"
 
 
-def run_simulation(config):
-    """Run simulation with the provided configuration"""
-
-    nodes = create_nodes(config)
-
-    # Create strategy instances from config
-    node_selection = get_strategy_instance(
-        config['node_selection_strategy'],
-        'node_selection_strategy'
-    )
-    resource_distribution = get_strategy_instance(
-        config['resource_distribution_strategy'],
-        'resource_distribution_strategy'
-    )
-
-
-    # Setup output directories and file paths
+def setup_output_paths(config):
     output_events_directory = Path(config.get('output_events_directory', 'output/events'))
     output_nodes_directory = Path(config.get('output_nodes_directory', 'output/nodes'))
-    output_log_directory = Path(config.get('output_log_directory', 'output'))
 
-    # Create directories
     output_events_directory.mkdir(parents=True, exist_ok=True)
     output_nodes_directory.mkdir(parents=True, exist_ok=True)
-    output_log_directory.mkdir(parents=True, exist_ok=True)
 
     output_events_filename = config.get('output_events', 'simulation_log_events.parquet')
     output_nodes_filename = config.get('output_nodes', 'simulation_log_nodes.parquet')
-    output_log_filename = config.get('output_log', 'simulation.log')
 
-    output_log = output_log_directory / output_log_filename
+    return output_events_directory, output_nodes_directory, output_events_filename, output_nodes_filename
 
-    # Initialize simulation with logging
+
+def save_monthly_data(month_str, event_recs, node_recs, output_events_directory, output_nodes_directory, output_events_filename, output_nodes_filename, months_processed):
+    if not event_recs:
+        return
+
+    print(f"\n  Saving data for {month_str}...")
+
+    events_path = Path(output_events_filename)
+    nodes_path = Path(output_nodes_filename)
+
+    events_monthly = output_events_directory / f"{events_path.stem}_{month_str}{events_path.suffix}"
+    nodes_monthly = output_nodes_directory / f"{nodes_path.stem}_{month_str}{nodes_path.suffix}"
+
+    events_table = pa.Table.from_pandas(pd.DataFrame(event_recs))
+    nodes_table = pa.Table.from_pandas(pd.DataFrame(node_recs))
+
+    pq.write_table(events_table, events_monthly)
+    pq.write_table(nodes_table, nodes_monthly)
+
+    print(f"  Saved {len(event_recs):,} events and {len(node_recs):,} node records")
+    months_processed.append(month_str)
+
+
+def build_job_event_from_row(row):
+    job = Job(
+        id=row.job_id,
+        nodes_required=row.nodes_required,
+        CPUs_required=row.CPUs_required,
+        GPUs_required=row.GPUs_required,
+        memory_required=row.memory_required,
+        start_time=row.start_time,
+        end_time=row.end_time,
+        real_node_selection=ast.literal_eval(row.real_node_selection) if pd.notna(row.real_node_selection) else None
+    )
+    event = JobEvent(job, row.action, row.time)
+    return job, event
+
+
+def compute_job_work_metadata(row):
+    if row.action != 'start':
+        return None, None, None, None, None, None
+
+    start_ts = pd.to_datetime(row.start_time)
+    end_ts = pd.to_datetime(row.end_time)
+
+    job_duration_seconds = (end_ts - start_ts).total_seconds()
+    
+    if pd.isna(job_duration_seconds) or job_duration_seconds < 0:
+        return start_ts, end_ts, None, None, None, None
+
+    job_cpu_seconds = float(row.CPUs_required) * job_duration_seconds
+    job_gpu_seconds = float(row.GPUs_required) * job_duration_seconds
+    job_mem_gb_seconds = (float(row.memory_required) / 1024.0) * job_duration_seconds
+
+    return start_ts, end_ts, job_duration_seconds, job_cpu_seconds, job_gpu_seconds, job_mem_gb_seconds
+
+
+def execute_event(slurm_sim, event):
+    event_success = None
+    failure_reason = None
+    limiting_resources = None
+
+    if event.action == 'start':
+        event_success, info = slurm_sim.place_job(event.job)
+        if not event_success:
+            failure_reason = info.get("reason")
+            limiting_resources = ",".join(info.get("limiting_resources", []))
+
+    elif event.action == 'finish':
+        release_success = slurm_sim.release_job(event.job.id)
+        event_success = release_success
+        if not release_success:
+            failure_reason = "release_failed"
+            limiting_resources = "release_failed"
+    else:
+        raise ValueError("Unknown event action")
+
+    return event_success, failure_reason, limiting_resources
+
+
+def append_records(event_records, node_records, i, event, state, dt_seconds, event_success, failure_reason, limiting_resources, start_ts, end_ts, job_duration_seconds, job_cpu_seconds, job_gpu_seconds, job_mem_gb_seconds):
+    event_records.append({
+        'event_index': i,
+        'time': event.time,
+        'action': event.action,
+        'job_id': event.job.id,
+        'active_jobs': state['active_jobs'],
+        'dt_seconds': dt_seconds,
+
+        'success': event_success,
+        'failure_reason': failure_reason,
+        'limiting_resources': limiting_resources,
+
+        'job_start_time': start_ts,
+        'job_end_time': end_ts,
+        'job_duration_seconds': job_duration_seconds,
+        'job_cpu_seconds': job_cpu_seconds,
+        'job_gpu_seconds': job_gpu_seconds,
+        'job_mem_gb_seconds': job_mem_gb_seconds,
+    })
+
+    for n_state in state['nodes']:
+        node_records.append({
+            'event_index': i,
+            'node_name': n_state['name'],
+            'CPUs_in_use': n_state['CPUs_in_use'],
+            'GPUs_in_use': n_state['GPUs_in_use'],
+            'memory_in_use': n_state['memory_in_use'],
+            'total_CPUs': n_state['total_CPUs'],
+            'total_GPUs': n_state['total_GPUs'],
+            'total_memory': n_state['total_memory'],
+            'CPU_utilisation': n_state['CPUs_in_use'] / n_state['total_CPUs'] if n_state['total_CPUs'] > 0 else 0,
+            'GPU_utilisation': n_state['GPUs_in_use'] / n_state['total_GPUs'] if n_state['total_GPUs'] > 0 else 0,
+            'memory_utilisation': n_state['memory_in_use'] / n_state['total_memory'] if n_state['total_memory'] > 0 else 0,
+            'power_consumption': n_state['power_consumption']
+        })
+
+
+def run_simulation(config):
+    nodes = create_nodes(config)
+
+    node_selection = get_strategy_instance(config['node_selection_strategy'], 'node_selection_strategy')
+    resource_distribution = get_strategy_instance(config['resource_distribution_strategy'], 'resource_distribution_strategy')
+
+    output_events_directory, output_nodes_directory, output_events_filename, output_nodes_filename = setup_output_paths(config)
+
     slurm_sim = SlurmSimulation(
         config['cluster_name'],
         nodes,
         node_selection,
         resource_distribution,
-        log_file=str(output_log)
     )
 
-    input_events = config.get('input_events')
-    events_df = pd.read_parquet(input_events)
-
-    # Add year-month column for grouping
+    events_df = pd.read_parquet(config.get('input_events'))
     events_df['time'] = pd.to_datetime(events_df['time'])
     events_df['year_month'] = events_df['time'].dt.to_period('M')
 
     event_records = []
     node_records = []
-    current_month = None
     months_processed = []
-   
-
-    def save_monthly_data(month_str, event_recs, node_recs):
-        """Save data for a specific month and clear the buffers"""
-        if not event_recs:
-            return
-
-        print(f"\n  Saving data for {month_str}...")
-
-        # Create monthly output filenames
-        events_path = Path(output_events_filename)
-        nodes_path = Path(output_nodes_filename)
-        events_monthly = output_events_directory / f"{events_path.stem}_{month_str}{events_path.suffix}"
-        nodes_monthly = output_nodes_directory / f"{nodes_path.stem}_{month_str}{nodes_path.suffix}"
-
-        # Convert to tables and write
-        events_table = pa.Table.from_pandas(pd.DataFrame(event_recs))
-        nodes_table = pa.Table.from_pandas(pd.DataFrame(node_recs))
-
-        pq.write_table(events_table, events_monthly)
-        pq.write_table(nodes_table, nodes_monthly)
-
-        print(f"  Saved {len(event_recs):,} events and {len(node_recs):,} node records")
-        months_processed.append(month_str)
-
-     
+    current_month = None
     prev_time = None
-    print(f"Starting simulation with {len(events_df):,} events...")
-    for i, row in events_df.iterrows():
-        job = Job(
-        id=row['job_id'],
-        nodes_required=row['nodes_required'],
-        CPUs_required=row['CPUs_required'],
-        GPUs_required=row['GPUs_required'],
-        memory_required=row['memory_required'],
-        start_time=row['start_time'],
-        end_time=row['end_time'],
-        real_node_selection=eval(row['real_node_selection']) if pd.notna(row['real_node_selection']) else None
-        )
-        event = JobEvent(job, row['action'], row['time'])
 
-        # Check if we've moved to a new month
-        event_month = str(row['year_month'])
+    print(f"Starting simulation with {len(events_df):,} events...")
+
+    for i, row in enumerate(events_df.itertuples(index=False), start=0):
+        job, event = build_job_event_from_row(row)
+
+        event_month = str(row.year_month)
         if current_month is None:
             current_month = event_month
             print(f"\nProcessing month: {current_month}")
         elif current_month != event_month:
-            # Save previous month's data
-            save_monthly_data(current_month, event_records, node_records)
-
-            # Reset for new month
+            save_monthly_data(current_month, event_records, node_records, output_events_directory, output_nodes_directory, output_events_filename, output_nodes_filename, months_processed)
             event_records = []
             node_records = []
             current_month = event_month
             print(f"\nProcessing month: {current_month}")
-        
-        # Compute time difference since last event 
+
         if prev_time is None:
-            dt = pd.NaT
             dt_seconds = None
         else:
-            dt = event.time - prev_time
-            dt_seconds = dt.total_seconds()
-
+            dt_seconds = (event.time - prev_time).total_seconds()
         prev_time = event.time
 
+        start_ts, end_ts, job_duration_seconds, job_cpu_seconds, job_gpu_seconds, job_mem_gb_seconds = compute_job_work_metadata(row)
 
-        if event.action == 'start':
-            slurm_sim.place_job(event.job)
-        elif event.action == 'finish':
-            slurm_sim.release_job(event.job.id)
-        else:
-            raise ValueError("Unknown event action")
+        event_success, failure_reason, limiting_resources = execute_event(slurm_sim, event)
 
         state = slurm_sim.get_current_state()
 
-        event_records.append({
-            'event_index': i,
-            'time': event.time,
-            'action': event.action,
-            'job_id': event.job.id,
-            'active_jobs': state['active_jobs'],          
-            'dt_seconds': dt_seconds,
-        })
+        append_records(event_records, node_records, i, event, state, dt_seconds, event_success, failure_reason, limiting_resources, start_ts, end_ts, job_duration_seconds, job_cpu_seconds, job_gpu_seconds, job_mem_gb_seconds)
 
-        for n_state in state['nodes']:
-            node_records.append({
-                'event_index': i,
-                'node_name': n_state['name'],
-                'CPUs_in_use': n_state['CPUs_in_use'],
-                'GPUs_in_use': n_state['GPUs_in_use'],
-                'memory_in_use': n_state['memory_in_use'],
-                'total_CPUs': n_state['total_CPUs'],
-                'total_GPUs': n_state['total_GPUs'],
-                'total_memory': n_state['total_memory'],
-                'CPU_utilisation': n_state['CPUs_in_use'] / n_state['total_CPUs'] if n_state['total_CPUs'] > 0 else 0,
-                'GPU_utilisation': n_state['GPUs_in_use'] / n_state['total_GPUs'] if n_state['total_GPUs'] > 0 else 0,
-                'memory_utilisation': n_state['memory_in_use'] / n_state['total_memory'] if n_state['total_memory'] > 0 else 0,
-                'power_consumption' : n_state['power_consumption']
-            })
-
-    # Save the last month's data
     if event_records:
-        save_monthly_data(current_month, event_records, node_records)
+        save_monthly_data(current_month, event_records, node_records, output_events_directory, output_nodes_directory, output_events_filename, output_nodes_filename, months_processed)
 
     print(f"\n\nSaved output for {len(months_processed)} months: {', '.join(months_processed)}")
-
-    # Print simulation statistics
-    stats = slurm_sim.get_stats()
-    print("\nSimulation complete:")
-    for key, value in stats.items():
-        print(f"{key}: {value:,}")
-
-    return None
-
-
-
-    
-
-

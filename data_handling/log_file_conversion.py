@@ -182,8 +182,16 @@ def read_slurm_logs(input_directory):
     return combined_df
 
 
-if __name__ == "__main__":
-    config = load_config(Path(__file__).with_name("config.txt"))
+def convert_logs(config):
+    """
+    Convert SLURM accounting logs to parquet format.
+    
+    Args:
+        config: Configuration dictionary with keys:
+            - input_directory: Directory containing .txt log files
+            - output_directory: Directory to save output (default: 'output')
+            - output_filename: Name of output file without extension (default: 'slurm_logs')
+    """
     input_directory = config.get('input_directory')
     output_directory = config.get('output_directory', 'output')
     output_filename = config.get('output_filename', 'slurm_logs')
@@ -195,21 +203,20 @@ if __name__ == "__main__":
 
     events = load_job_events(df)
 
-
     events_df = pd.DataFrame([
-    {
-        'job_id': event.job.id,
-        'nodes_required': event.job.nodes_required,
-        'CPUs_required': event.job.CPUs_required,
-        'GPUs_required': event.job.GPUs_required,
-        'memory_required': event.job.memory_required,
-        'start_time': event.job.start_time,
-        'end_time': event.job.end_time,
-        'real_node_selection': str(event.job.real_node_selection) if event.job.real_node_selection else None,
-        'action': event.action,
-        'time': event.time
-    }
-    for event in events])
+        {
+            'job_id': event.job.id,
+            'nodes_required': event.job.nodes_required,
+            'CPUs_required': event.job.CPUs_required,
+            'GPUs_required': event.job.GPUs_required,
+            'memory_required': event.job.memory_required,
+            'start_time': event.job.start_time,
+            'end_time': event.job.end_time,
+            'real_node_selection': str(event.job.real_node_selection) if event.job.real_node_selection else None,
+            'action': event.action,
+            'time': event.time
+        }
+        for event in events])
 
     print(f"\nEvents shape before deduplication: {events_df.shape}")
 
@@ -231,4 +238,11 @@ if __name__ == "__main__":
 
     events_df.to_parquet(output_file, index=False, engine='pyarrow')
     print(f"\nEvents dataframe saved to: {output_file}")
+    
+    return output_file
+
+
+if __name__ == "__main__":
+    config = load_config(Path(__file__).with_name("config.txt"))
+    convert_logs(config)
 

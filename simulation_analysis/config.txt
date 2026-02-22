@@ -6,7 +6,7 @@ input_events_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\p
 input_nodes_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\parquet-sim-outputs\nodes
 
 # Directory for outputting report to
-output_report_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\Simulation Results
+output_report_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\test
 
 # Visualization Options
 # Show a vertical line marking the latest job submission time
