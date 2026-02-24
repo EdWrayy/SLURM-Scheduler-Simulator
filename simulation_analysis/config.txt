@@ -2,12 +2,15 @@
 
 # File Paths
 # Directories containing monthly parquet files
-input_events_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\parquet-sim-outputs\events
-input_nodes_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\parquet-sim-outputs\nodes
+input_events_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\parquet-sim-outputs\Default Power Model\CopyRealNodeSelection\events
+input_nodes_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\parquet-sim-outputs\Default Power Model\CopyRealNodeSelection\nodes
 
 # Directory for outputting report to
-output_report_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\test
+output_report_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\Simulation Analysis Results\Default Power Model\CopyRealNodeSelection
 
 # Visualization Options
 # Show a vertical line marking the latest job submission time
 show_last_job_submission_line = true
+
+
+baseline_total_energy_kwh = 3315226.404719648

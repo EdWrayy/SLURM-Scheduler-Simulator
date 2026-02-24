@@ -1,16 +1,13 @@
 # SLURM Simulation Configuration File
 
-# Cluster Settings
-cluster_name = iridis_x
-
 # File Paths
 nodes_config_file = nodes_config.txt
 input_events = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\parquet-input-logs\entire-history-logs.parquet
 output_events = entire_history_output_events.parquet
 output_nodes = entire_history_output_nodes.parquet
 # Separate directories for events and nodes monthly outputs
-output_events_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\parquet-sim-outputs\events
-output_nodes_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\parquet-sim-outputs\nodes
+output_events_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\parquet-sim-outputs\Default Power Model\CopyRealNodeSelection\events
+output_nodes_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\parquet-sim-outputs\Default Power Model\CopyRealNodeSelection\nodes
 
 # Strategies
 # Node Selection Strategy: CopyRealNodeSelection, FirstFitNodeSelection

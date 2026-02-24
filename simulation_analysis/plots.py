@@ -27,22 +27,34 @@ def make_plots(snapshots_df, config, events_df):
     fig.tight_layout()
     plots["active_nodes_over_time"] = fig
 
-    # Dropped work composition (by limiting resource)
+    
+    # Dropped job composition (by limiting resource)
     starts = events_df[events_df["action"] == "start"]
     dropped = starts[starts["success"] == False].copy()
-    if not dropped.empty:
-        dropped["limiting_resources"] = dropped["limiting_resources"].fillna("unknown")
-        dropped["job_gpu_seconds"] = dropped["job_gpu_seconds"].fillna(0.0)
 
-        breakdown = dropped.groupby("limiting_resources")["job_gpu_seconds"].sum().sort_values(ascending=False)
+    if not dropped.empty:
+        dropped["limiting_resources"] = (
+            dropped["limiting_resources"]
+            .fillna("unknown")
+            .astype(str)
+        )
+
+        breakdown = (
+            dropped.groupby("limiting_resources")
+            .size()
+            .sort_values(ascending=False)
+        )
 
         fig, ax = plt.subplots()
-        ax.bar(breakdown.index.astype(str), breakdown.values)
-        ax.set_title("Dropped work composition by limiting resource (GPU-seconds)")
+        ax.bar(breakdown.index, breakdown.values)
+
+        ax.set_title("Dropped jobs by limiting resource")
         ax.set_xlabel("Limiting resource")
-        ax.set_ylabel("Dropped GPU-seconds")
+        ax.set_ylabel("Number of dropped jobs")
+
         ax.tick_params(axis="x", rotation=30)
         fig.tight_layout()
-        plots["dropped_work_composition"] = fig
+
+        plots["dropped_job_composition"] = fig
 
     return plots

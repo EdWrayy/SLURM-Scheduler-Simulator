@@ -1,4 +1,4 @@
-from .slurm_simulator import SlurmSimulation, Node, DefaultResourceDistribution, CopyRealNodeSelection, ActiveOnlyPowerModel, LinearWithIdlePowerModel, LinearWithSleepPowerModel
+from .slurm_simulator import SlurmSimulation, Node, DefaultResourceDistribution, CopyRealNodeSelection, FirstFitNodeSelection, ActiveOnlyPowerModel, LinearWithIdlePowerModel, LinearWithSleepPowerModel
 from .power_constants import NODE_HARDWARE, CPU_POWER, GPU_POWER, RAM_POWER
 from common.models import Job, JobEvent
 import pandas as pd
@@ -15,6 +15,8 @@ def get_strategy_instance(strategy_name, strategy_type):
     if strategy_type == "node_selection_strategy":
         if strategy_name == "CopyRealNodeSelection":
             return CopyRealNodeSelection()
+        elif strategy_name == "FirstFitNodeSelection":
+            return FirstFitNodeSelection()
         else:
             raise ValueError("Unknown Selection Strategy")
         
@@ -117,6 +119,51 @@ def get_real_node_name(node_type, id):
         # pad to 2 digits
         return f"{node_type}{id:02d}"
 
+def print_simulation_configuration(config, nodes):
+    print("\n" + "="*70)
+    print("SLURM SIMULATION CONFIGURATION")
+    print("="*70)
+
+    print("\nStrategies:")
+    print(f"  Node selection: {config['node_selection_strategy']}")
+    print(f"  Resource distribution: {config['resource_distribution_strategy']}")
+    print(f"  Power model: {config['power_model']}")
+
+    print("\nConfigured node groups:")
+    for n in config["nodes"]:
+        print(
+            f"  type={n[0]:10s} "
+            f"order={n[1]:2s} "
+            f"range={n[2]:15s} "
+            f"count={n[3]:3s} "
+            f"CPUs={n[4]:4s} "
+            f"GPUs={n[5]:2s} "
+            f"mem={n[7]}"
+        )
+
+    print("\nNodes instantiated in simulation:")
+    print(f"  Total nodes: {len(nodes)}")
+
+    names = sorted(n.name for n in nodes)
+
+    # print grouped by prefix
+    from collections import defaultdict
+    groups = defaultdict(list)
+
+    for name in names:
+        prefix = ''.join([c for c in name if not c.isdigit()])
+        groups[prefix].append(name)
+
+    for prefix, group in sorted(groups.items()):
+        print(f"\n  {prefix} ({len(group)} nodes)")
+        print("   ", ", ".join(group[:10]))
+        if len(group) > 10:
+            print("    ...")
+
+    print("\nFull node list:")
+    print(", ".join(names))
+
+    print("="*70 + "\n")
 
 def setup_output_paths(config):
     output_events_directory = Path(config.get('output_events_directory', 'output/events'))
@@ -196,7 +243,13 @@ def execute_event(slurm_sim, event):
         event_success, info = slurm_sim.place_job(event.job)
         if not event_success:
             failure_reason = info.get("reason")
-            limiting_resources = ",".join(info.get("limiting_resources", []))
+            lr = info.get("limiting_resources", [])
+            if lr is None:
+                limiting_resources = None
+            elif isinstance(lr, str):
+                limiting_resources = lr
+            else:
+                limiting_resources = ",".join(map(str, lr))
 
     elif event.action == 'finish':
         release_success = slurm_sim.release_job(event.job.id)
@@ -248,8 +301,11 @@ def append_records(event_records, node_records, i, event, state, dt_seconds, eve
         })
 
 
+
+
 def run_simulation(config):
     nodes = create_nodes(config)
+    print_simulation_configuration(config, nodes)
 
     node_selection = get_strategy_instance(config['node_selection_strategy'], 'node_selection_strategy')
     resource_distribution = get_strategy_instance(config['resource_distribution_strategy'], 'resource_distribution_strategy')
@@ -257,7 +313,6 @@ def run_simulation(config):
     output_events_directory, output_nodes_directory, output_events_filename, output_nodes_filename = setup_output_paths(config)
 
     slurm_sim = SlurmSimulation(
-        config['cluster_name'],
         nodes,
         node_selection,
         resource_distribution,

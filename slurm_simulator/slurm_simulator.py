@@ -294,8 +294,7 @@ class DefaultResourceDistribution(ResourceDistributionStrategy):
 
 
 class SlurmSimulation:
-    def __init__(self, cluster_name, node_list, node_selection_strategy, resource_distribution_strategy):
-        self.cluster_name = cluster_name
+    def __init__(self, node_list, node_selection_strategy, resource_distribution_strategy):
         self.node_list = node_list
         self.node_selection_strategy = node_selection_strategy
         self.resource_distribution_strategy = resource_distribution_strategy
@@ -313,11 +312,11 @@ class SlurmSimulation:
 
             return True, info
 
-        except Exception:
+        except Exception as e:
             return False, {
                 "failed": True,
-                "limiting_resources": ["exception"],
-                "reason": "exception"
+                "limiting_resources": f"{type(e).__name__}: {e}",
+                "reason": f"{type(e).__name__}: {e}",
             }
 
 

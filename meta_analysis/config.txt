@@ -1,0 +1,2 @@
+# Directory containing json files of individual simulation reports
+sim_reports_directory = 

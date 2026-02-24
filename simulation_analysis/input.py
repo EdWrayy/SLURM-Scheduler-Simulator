@@ -8,16 +8,13 @@ def load_simulation_output(config):
     return create_dataframes(events_dir, nodes_dir)
 
 def create_dataframes(events_dir, nodes_dir):
-    event_files = events_dir.glob("*.parquet")
-    node_files = nodes_dir.glob("*.parquet")
+    event_files = sorted(events_dir.glob("*.parquet"))
+    node_files  = sorted(nodes_dir.glob("*.parquet"))
 
-    event_dfs = [pd.read_parquet(f) for f in event_files]
-    events_df = pd.concat(event_dfs, ignore_index=True)
-    events_df["time"] = pd.to_datetime(events_df["time"])
-    events_df = events_df.sort_values("event_index").set_index("event_index", drop=False)
+    events_df = pd.concat((pd.read_parquet(f) for f in event_files), ignore_index=True)
+    events_df = events_df.set_index("event_index", drop=True)
 
-    node_dfs = [pd.read_parquet(f) for f in node_files]
-    nodes_df = pd.concat(node_dfs, ignore_index=True)
-    nodes_df = nodes_df.sort_values("event_index").set_index("event_index", drop=True)
+    nodes_df = pd.concat((pd.read_parquet(f) for f in node_files), ignore_index=True)
+    nodes_df = nodes_df.set_index("event_index", drop=True)
     
     return events_df, nodes_df
