@@ -43,6 +43,7 @@ def get_strategy_instance(strategy_name, strategy_type):
 
 def create_nodes(config):
     nodes = []
+    node_type_by_name = {}
 
     power_model = get_strategy_instance(
         config['power_model'],
@@ -79,8 +80,11 @@ def create_nodes(config):
         ram_max_power  = ram_p["max_W_per_GB"]
                 
         for i in range(1, num_nodes+1):
+            node_name = get_real_node_name(node_type, i)
+            node_type_by_name[node_name] = node_type  
+
             node = Node(
-                name=get_real_node_name(node_type, i),
+                name=node_name,
                 id = i, #Used for sorting nodes for selection
                 list_position=config_order,
                 total_CPUs= cpus,
@@ -96,7 +100,7 @@ def create_nodes(config):
             )
             nodes.append(node)
 
-    return nodes
+    return nodes, node_type_by_name
 
 
 def get_real_node_name(node_type, id): 
@@ -119,7 +123,7 @@ def get_real_node_name(node_type, id):
         # pad to 2 digits
         return f"{node_type}{id:02d}"
 
-def print_simulation_configuration(config, nodes):
+def print_simulation_configuration(config, nodes, node_type_by_name):
     print("\n" + "="*70)
     print("SLURM SIMULATION CONFIGURATION")
     print("="*70)
@@ -150,18 +154,15 @@ def print_simulation_configuration(config, nodes):
     from collections import defaultdict
     groups = defaultdict(list)
 
-    for name in names:
-        prefix = ''.join([c for c in name if not c.isdigit()])
-        groups[prefix].append(name)
+    for n in nodes:
+        groups[node_type_by_name.get(n.name, "unknown")].append(n.name)
 
-    for prefix, group in sorted(groups.items()):
-        print(f"\n  {prefix} ({len(group)} nodes)")
+    for node_type, group in groups.items():
+        group = sorted(group)
+        print(f"\n  {node_type} ({len(group)} nodes)")
         print("   ", ", ".join(group[:10]))
         if len(group) > 10:
             print("    ...")
-
-    print("\nFull node list:")
-    print(", ".join(names))
 
     print("="*70 + "\n")
 
@@ -304,8 +305,8 @@ def append_records(event_records, node_records, i, event, state, dt_seconds, eve
 
 
 def run_simulation(config):
-    nodes = create_nodes(config)
-    print_simulation_configuration(config, nodes)
+    nodes, node_type_by_name = create_nodes(config)
+    print_simulation_configuration(config, nodes, node_type_by_name)
 
     node_selection = get_strategy_instance(config['node_selection_strategy'], 'node_selection_strategy')
     resource_distribution = get_strategy_instance(config['resource_distribution_strategy'], 'resource_distribution_strategy')

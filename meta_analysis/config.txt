@@ -1,2 +1,14 @@
 # Directory containing json files of individual simulation reports
-sim_reports_directory = 
+input_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\Meta Analysis Results\Sleep Power Model\Inputs
+
+# Directory to output metrics and plots to 
+output_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\Meta Analysis Results\Sleep Power Model\Outputs
+
+# comma-separated list of metrics to include
+include_keys = energy_saving_pct, dropped_work_pct, total_energy_kwh, average_power_kw, cpu_util_mean, gpu_util_mean
+
+# comma-separated list of metrics where higher is better
+higher_is_better = energy_saving_pct, cpu_util_mean, gpu_util_mean
+
+pareto_x=dropped_work_pct
+pareto_y=energy_saving_pct

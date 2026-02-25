@@ -1,4 +1,5 @@
 import pandas as pd
+import re
 from pathlib import Path
 from common.models import Job, JobEvent
 from common.config import load_config
@@ -36,38 +37,61 @@ def parse_alloc_tres(alloc_tres):
     return cpus, gpus, mem_mb
 
 
-def expand_node_list(node_list):
+def expand_node_list(node_list: str):
     """
-    Expand Slurm nodelist expressions such as:
+    Expand Slurm nodelist expressions into a list of concrete node names.
+
+    Examples:
+      ruby053
+        -> ['ruby053']
+
       ruby[053-054,056,058]
-    into:
-      ['ruby053', 'ruby054', 'ruby056', 'ruby058']
+        -> ['ruby053', 'ruby054', 'ruby056', 'ruby058']
 
-    Also handles simple names such as 'ruby053' or multiple groups
-    like 'ruby[001-003],swarma[010-011]'.
+      ruby[001-003],swarma[1001-1005],coral01
+        -> ['ruby001','ruby002','ruby003','swarma1001',...,'coral01']
     """
-
-    if not node_list or node_list == "":
+    if node_list is None:
         return None
-    
-    if '[' in node_list:
-        name, values = node_list.split('[')
-        values = values.rstrip(']')
-        bounds = values.split(',')
-        nodes = []
-        for bound in bounds:
-            if not '-' in bound:
-                nodes.append(name + bound)
+
+    s = str(node_list).strip()
+    if s == "" or s.lower() == "none assigned":
+        return None
+
+    # Split by commas that are NOT inside [...]
+    parts = re.split(r",(?![^\[]*\])", s)
+
+    out = []
+
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+
+        # Match "prefix[inside]"
+        m = re.match(r"^([^\[]+)\[(.+)\]$", part)
+        if not m:
+            # Plain hostname
+            out.append(part)
+            continue
+
+        prefix = m.group(1)
+        inside = m.group(2)
+
+        for token in inside.split(","):
+            token = token.strip()
+            if not token:
                 continue
-            lb, ub = bound.split('-')
-            pad = len(lb)
-            lower_bound, upper_bound = int(lb), int(ub)
-            for i in range(upper_bound - lower_bound + 1):
-                n = lower_bound + i
-                nodes.append(name + str(n).zfill(pad))
-        return nodes
-    else:
-        return [node_list] #Just a single numbered node
+
+            if "-" in token:
+                lb, ub = token.split("-", 1)
+                pad = len(lb)
+                for n in range(int(lb), int(ub) + 1):
+                    out.append(prefix + str(n).zfill(pad))
+            else:
+                out.append(prefix + token)
+
+    return out or None
     
 
 

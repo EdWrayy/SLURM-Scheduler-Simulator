@@ -3,6 +3,8 @@ import pandas as pd
 
 
 
+
+
 def calculate_all_metrics(events_df, nodes_df, config):
     """
     EVENTS TABLE:
@@ -244,6 +246,8 @@ def calculate_all_metrics(events_df, nodes_df, config):
         "total_time_s": float(total_time_s),
     }
 
+    results = round_metrics(results, dp=3)
+
     return snapshots_df, results
 
 def calculate_p95(metric_values, time_durations):
@@ -288,3 +292,13 @@ def calculate_p95(metric_values, time_durations):
     )
 
     return float(sorted_values[percentile_index])
+
+
+def round_metrics(d, dp=3):
+    out = {}
+    for k, v in d.items():
+        if isinstance(v, float) and np.isfinite(v):
+            out[k] = round(v, dp)
+        else:
+            out[k] = v
+    return out
