@@ -2,8 +2,8 @@
 
 # File Paths
 # Directories containing monthly parquet files
-input_events_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\Simulation Output Parquet Files\Sleep Power Model\First Fit\events
-input_nodes_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\Simulation Output Parquet Files\Sleep Power Model\First Fit\nodes
+input_events_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\Simulation Output Parquet Files\Sleep Power Model\CopyRealNodeSelection\events
+input_nodes_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\Simulation Output Parquet Files\Sleep Power Model\CopyRealNodeSelection\nodes
 
 # Directory for outputting report to
 output_report_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\Simulation Analysis Results\Sleep Power Model\First Fit

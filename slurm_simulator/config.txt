@@ -10,7 +10,13 @@ output_events_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\
 output_nodes_directory = C:\Users\edjwr\Documents\Part 3 Project\Iridis X Data\Simulation Output Parquet Files\Sleep Power Model\First Fit\nodes
 
 # Strategies
-# Node Selection Strategy: CopyRealNodeSelection, FirstFitNodeSelection
+# Node Selection Strategy:
+# CopyRealNodeSelection
+# FirstFitNodeSelection
+# BestFitByFreeCPUsNodeSelection
+# BestFitByFreeGPUsNodeSelection
+# JointCpuGpuBestFitNodeSelection
+# DominantResourcePackingNodeSelection
 node_selection_strategy = FirstFitNodeSelection
 
 # Resource Distribution Strategy: DefaultResourceDistribution

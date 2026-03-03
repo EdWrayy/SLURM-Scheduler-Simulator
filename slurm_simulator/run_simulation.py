@@ -1,4 +1,17 @@
-from .slurm_simulator import SlurmSimulation, Node, DefaultResourceDistribution, CopyRealNodeSelection, FirstFitNodeSelection, ActiveOnlyPowerModel, LinearWithIdlePowerModel, LinearWithSleepPowerModel
+from .slurm_simulator import (
+    SlurmSimulation,
+    Node,
+    DefaultResourceDistribution,
+    CopyRealNodeSelection,
+    FirstFitNodeSelection,
+    BestFitByFreeCPUsNodeSelection,
+    BestFitByFreeGPUsNodeSelection,
+    JointCpuGpuBestFitNodeSelection,
+    DominantResourcePackingNodeSelection,
+    ActiveOnlyPowerModel,
+    LinearWithIdlePowerModel,
+    LinearWithSleepPowerModel,
+)
 from .power_constants import NODE_HARDWARE, CPU_POWER, GPU_POWER, RAM_POWER
 from common.models import Job, JobEvent
 import pandas as pd
@@ -17,6 +30,14 @@ def get_strategy_instance(strategy_name, strategy_type):
             return CopyRealNodeSelection()
         elif strategy_name == "FirstFitNodeSelection":
             return FirstFitNodeSelection()
+        elif strategy_name == "BestFitByFreeCPUsNodeSelection":
+            return BestFitByFreeCPUsNodeSelection()
+        elif strategy_name == "BestFitByFreeGPUsNodeSelection":
+            return BestFitByFreeGPUsNodeSelection()
+        elif strategy_name == "JointCpuGpuBestFitNodeSelection":
+            return JointCpuGpuBestFitNodeSelection()
+        elif strategy_name == "DominantResourcePackingNodeSelection":
+            return DominantResourcePackingNodeSelection()
         else:
             raise ValueError("Unknown Selection Strategy")
         

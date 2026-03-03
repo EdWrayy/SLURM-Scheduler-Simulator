@@ -140,6 +140,69 @@ class NodeSelectionStrategy:
             free_m >= job.memory_required
         )
 
+    def build_failure_info(self, job, node_list):
+        total_free_cpus = 0
+        total_free_gpus = 0
+        total_free_mem = 0
+
+        for node in node_list:
+            free_c, free_g, free_m = self.free_capacity(node)
+            total_free_cpus += free_c
+            total_free_gpus += free_g
+            total_free_mem += free_m
+
+        limiting = []
+        if total_free_cpus < job.CPUs_required:
+            limiting.append("CPUs")
+        if total_free_gpus < job.GPUs_required:
+            limiting.append("GPUs")
+        if total_free_mem < job.memory_required:
+            limiting.append("memory")
+
+        if not limiting:
+            limiting = ["fragmentation_or_constraints"]
+
+        return {
+            "failed": True,
+            "limiting_resources": limiting,
+            "reason": "insufficient_total_capacity" if limiting != ["fragmentation_or_constraints"] else "fragmentation_or_constraints",
+        }
+
+    def spread_select(self, job, ordered_nodes, success_reason):
+        cpus_left = job.CPUs_required
+        gpus_left = job.GPUs_required
+        mem_left = job.memory_required
+
+        selected = []
+
+        for node in ordered_nodes:
+            if cpus_left <= 0 and gpus_left <= 0 and mem_left <= 0:
+                break
+
+            free_c, free_g, free_m = self.free_capacity(node)
+            can_help = (
+                (cpus_left > 0 and free_c > 0) or
+                (gpus_left > 0 and free_g > 0) or
+                (mem_left > 0 and free_m > 0)
+            )
+
+            if not can_help:
+                continue
+
+            selected.append(node)
+            cpus_left = max(0, cpus_left - free_c)
+            gpus_left = max(0, gpus_left - free_g)
+            mem_left = max(0, mem_left - free_m)
+
+        if cpus_left <= 0 and gpus_left <= 0 and mem_left <= 0:
+            return selected, {
+                "failed": False,
+                "limiting_resources": [],
+                "reason": success_reason,
+            }
+
+        return [], self.build_failure_info(job, ordered_nodes)
+
 class CopyRealNodeSelection(NodeSelectionStrategy): 
     """ Places jobs exactly where the real logs placed them for benchmarking. """ 
     def __init__(self): 
@@ -208,31 +271,179 @@ class FirstFitNodeSelection(NodeSelectionStrategy):
             }
 
         # 3) Failure: work out what limited placement
-        total_free_cpus = 0
-        total_free_gpus = 0
-        total_free_mem  = 0
-        for node in node_list:
-            free_c, free_g, free_m = self.free_capacity(node)
-            total_free_cpus += free_c
-            total_free_gpus += free_g
-            total_free_mem  += free_m
+        return [], self.build_failure_info(job, node_list)
 
-        limiting = []
-        if total_free_cpus < job.CPUs_required:
-            limiting.append("CPUs")
-        if total_free_gpus < job.GPUs_required:
-            limiting.append("GPUs")
-        if total_free_mem < job.memory_required:
-            limiting.append("memory")
 
-        if not limiting:
-            limiting = ["fragmentation_or_constraints"]
+class BestFitByFreeCPUsNodeSelection(NodeSelectionStrategy):
+    """
+    CPU-oriented best-fit:
+      - Single node: minimise remaining CPUs after placement.
+      - Multi-node: greedily consume nodes with the least free CPUs first.
+    """
 
-        return [], {
-            "failed": True,
-            "limiting_resources": limiting,
-            "reason": "insufficient_total_capacity" if limiting != ["fragmentation_or_constraints"] else "fragmentation_or_constraints"
-        }
+    def select_nodes(self, job, node_list):
+        candidates = [node for node in node_list if self.has_capacity_for_all(node, job)]
+        if candidates:
+            best = min(
+                candidates,
+                key=lambda node: (
+                    (node.total_CPUs - node.CPUs_in_use) - job.CPUs_required,
+                    (node.total_GPUs - node.GPUs_in_use) - job.GPUs_required,
+                    (node.total_memory - node.memory_in_use) - job.memory_required,
+                    node.list_position,
+                    node.id,
+                ),
+            )
+            return [best], {
+                "failed": False,
+                "limiting_resources": [],
+                "reason": "single_node_best_fit_cpu",
+            }
+
+        ordered = sorted(
+            node_list,
+            key=lambda node: (
+                node.total_CPUs - node.CPUs_in_use,
+                node.list_position,
+                node.id,
+            ),
+        )
+        return self.spread_select(job, ordered, "spread_best_fit_cpu")
+
+
+class BestFitByFreeGPUsNodeSelection(NodeSelectionStrategy):
+    """
+    GPU-oriented best-fit:
+      - Single node: minimise remaining GPUs after placement.
+      - Multi-node: greedily consume nodes with the least free GPUs first.
+    """
+
+    def select_nodes(self, job, node_list):
+        candidates = [node for node in node_list if self.has_capacity_for_all(node, job)]
+        if candidates:
+            best = min(
+                candidates,
+                key=lambda node: (
+                    (node.total_GPUs - node.GPUs_in_use) - job.GPUs_required,
+                    (node.total_CPUs - node.CPUs_in_use) - job.CPUs_required,
+                    (node.total_memory - node.memory_in_use) - job.memory_required,
+                    node.list_position,
+                    node.id,
+                ),
+            )
+            return [best], {
+                "failed": False,
+                "limiting_resources": [],
+                "reason": "single_node_best_fit_gpu",
+            }
+
+        ordered = sorted(
+            node_list,
+            key=lambda node: (
+                node.total_GPUs - node.GPUs_in_use,
+                node.list_position,
+                node.id,
+            ),
+        )
+        return self.spread_select(job, ordered, "spread_best_fit_gpu")
+
+
+class JointCpuGpuBestFitNodeSelection(NodeSelectionStrategy):
+    """
+    Joint CPU/GPU best-fit.
+    Minimises Manhattan slack: remaining_CPU + remaining_GPU.
+    """
+
+    def select_nodes(self, job, node_list):
+        candidates = [node for node in node_list if self.has_capacity_for_all(node, job)]
+        if candidates:
+            best = min(
+                candidates,
+                key=lambda node: (
+                    ((node.total_CPUs - node.CPUs_in_use) - job.CPUs_required) +
+                    ((node.total_GPUs - node.GPUs_in_use) - job.GPUs_required),
+                    (node.total_memory - node.memory_in_use) - job.memory_required,
+                    node.list_position,
+                    node.id,
+                ),
+            )
+            return [best], {
+                "failed": False,
+                "limiting_resources": [],
+                "reason": "single_node_joint_cpu_gpu_best_fit",
+            }
+
+        ordered = sorted(
+            node_list,
+            key=lambda node: (
+                (node.total_CPUs - node.CPUs_in_use) + (node.total_GPUs - node.GPUs_in_use),
+                node.list_position,
+                node.id,
+            ),
+        )
+        return self.spread_select(job, ordered, "spread_joint_cpu_gpu_best_fit")
+
+
+class DominantResourcePackingNodeSelection(NodeSelectionStrategy):
+    """
+    Place jobs towards nodes already most loaded in the job's dominant resource.
+    Dominant resource is chosen between CPU and GPU by higher requested proportion
+    of currently available cluster capacity.
+    """
+
+    def _dominant_resource(self, job, node_list):
+        total_free_cpus = sum(max(0, n.total_CPUs - n.CPUs_in_use) for n in node_list)
+        total_free_gpus = sum(max(0, n.total_GPUs - n.GPUs_in_use) for n in node_list)
+
+        cpu_pressure = (
+            (job.CPUs_required / total_free_cpus)
+            if total_free_cpus > 0 else float("inf") if job.CPUs_required > 0 else 0.0
+        )
+        gpu_pressure = (
+            (job.GPUs_required / total_free_gpus)
+            if total_free_gpus > 0 else float("inf") if job.GPUs_required > 0 else 0.0
+        )
+
+        return "GPUs" if gpu_pressure > cpu_pressure else "CPUs"
+
+    def _dominant_utilisation(self, node, dominant):
+        if dominant == "GPUs":
+            return (node.GPUs_in_use / node.total_GPUs) if node.total_GPUs > 0 else 0.0
+        return (node.CPUs_in_use / node.total_CPUs) if node.total_CPUs > 0 else 0.0
+
+    def select_nodes(self, job, node_list):
+        dominant = self._dominant_resource(job, node_list)
+
+        candidates = [node for node in node_list if self.has_capacity_for_all(node, job)]
+        if candidates:
+            best = min(
+                candidates,
+                key=lambda node: (
+                    -self._dominant_utilisation(node, dominant),
+                    ((node.total_GPUs - node.GPUs_in_use) - job.GPUs_required) if dominant == "GPUs"
+                    else ((node.total_CPUs - node.CPUs_in_use) - job.CPUs_required),
+                    (node.total_memory - node.memory_in_use) - job.memory_required,
+                    node.list_position,
+                    node.id,
+                ),
+            )
+            return [best], {
+                "failed": False,
+                "limiting_resources": [],
+                "reason": f"single_node_dominant_resource_packing_{dominant.lower()}",
+            }
+
+        ordered = sorted(
+            node_list,
+            key=lambda node: (
+                -self._dominant_utilisation(node, dominant),
+                (node.total_GPUs - node.GPUs_in_use) if dominant == "GPUs"
+                else (node.total_CPUs - node.CPUs_in_use),
+                node.list_position,
+                node.id,
+            ),
+        )
+        return self.spread_select(job, ordered, f"spread_dominant_resource_packing_{dominant.lower()}")
 
 
 
@@ -352,5 +563,4 @@ class SlurmSimulation:
 
 
         
-
 
