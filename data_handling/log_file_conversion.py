@@ -5,6 +5,20 @@ from common.models import Job, JobEvent
 from common.config import load_config
 
 
+"""
+Swarml4 [04-09] nodes changed names to ecsai [01-06] midway through the logs.
+We therefore rename them from the start for the sake of consistency
+"""
+NODE_RENAME = {
+    "swarml404": "ecsai01",
+    "swarml405": "ecsai02",
+    "swarml406": "ecsai03",
+    "swarml407": "ecsai04",
+    "swarml408": "ecsai05",
+    "swarml409": "ecsai06",
+}
+
+
 def parse_alloc_tres(alloc_tres):
     """
     Parse AllocTRES such as:
@@ -116,7 +130,9 @@ def load_job_events(df):
         if pd.isna(node_list_value) or str(node_list_value).strip().lower() == "none assigned":
             real_selected_nodes = None
         else:
-            real_selected_nodes = expand_node_list(str(node_list_value))
+            real_selected_nodes = normalize_node_names(
+                expand_node_list(str(node_list_value))
+            )
 
         start_time = row["Start"]
         end_time = row["End"]
@@ -206,6 +222,12 @@ def read_slurm_logs(input_directory):
     return combined_df
 
 
+def normalize_node_names(nodes):
+    if not nodes:
+        return nodes
+    return [NODE_RENAME.get(node, node) for node in nodes]
+
+
 def convert_logs(config):
     """
     Convert SLURM accounting logs to parquet format.
@@ -267,6 +289,6 @@ def convert_logs(config):
 
 
 if __name__ == "__main__":
-    config = load_config(Path(__file__).with_name("config.txt"))
+    config = load_config(Path(__file__).with_name("config.json"))
     convert_logs(config)
 

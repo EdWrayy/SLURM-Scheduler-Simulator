@@ -8,7 +8,7 @@ def _load_analysis_config(config=None, config_path=None):
     if config is not None:
         return config
 
-    path = Path(config_path) if config_path else Path(__file__).with_name("config.txt")
+    path = Path(config_path) if config_path else Path(__file__).with_name("config.json")
     return load_config(path)
 
 

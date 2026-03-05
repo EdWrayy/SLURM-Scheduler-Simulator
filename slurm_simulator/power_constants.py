@@ -54,14 +54,14 @@ NODE_HARDWARE = {
         "num_gpus": 8,
     },
     "swarml4": {
-        "cpu": "epyc_9534",
+        "cpu": "xeon_5418Y",
         "gpu": "l4",
         "ram": "ddr4",
         "num_gpus": 8,
     },
     "ecsai": {
-        "cpu": "epyc_9534",
-        "gpu": "mi300x",
+        "cpu": "xeon_5418Y",
+        "gpu": "l4",
         "ram": "ddr4",
         "num_gpus": 8,
     },
@@ -75,6 +75,7 @@ CPU_POWER = {
     "epyc_9534":   {"idle_W": 120, "max_W": 320},
     "xeon_6336y":  {"idle_W": 80,  "max_W": 200},
     "xeon_8468":   {"idle_W": 120, "max_W": 350},
+    "xeon_5418Y": {"idle_W": 120, "max_W": 185},
 }
 
 
@@ -89,5 +90,6 @@ GPU_POWER = {
 
 
 RAM_POWER = {
-    "ddr4": {"idle_W_per_GB": 0.25, "max_W_per_GB": 0.5,}
+    "ddr4": {"idle_W_per_GB": 0.25, "max_W_per_GB": 0.5,},
+    "ddr5": {"idle_W_per_GB": 0.25, "max_W_per_GB": 0.5,},
 }

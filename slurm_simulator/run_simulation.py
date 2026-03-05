@@ -72,14 +72,24 @@ def create_nodes(config):
     )
 
     for node_config in config["nodes"]:
-        node_type = node_config[0]
-        config_order = int(node_config[1])
-        node_range = node_config[2]
-        num_nodes = int(node_config[3])
-        cpus = int(node_config[4])
-        gpus = int(node_config[5])
-        gpu_type = node_config[6]
-        memory = int(node_config[7])
+        if isinstance(node_config, dict):
+            node_type = node_config["node_type"]
+            config_order = int(node_config["config_order"])
+            node_range = node_config["node_range"]
+            num_nodes = int(node_config["num_nodes"])
+            cpus = int(node_config["cpus_per_node"])
+            gpus = int(node_config["gpus_per_node"])
+            gpu_type = node_config["gpu_type"]
+            memory = int(node_config["memory_mb"])
+        else:
+            node_type = node_config[0]
+            config_order = int(node_config[1])
+            node_range = node_config[2]
+            num_nodes = int(node_config[3])
+            cpus = int(node_config[4])
+            gpus = int(node_config[5])
+            gpu_type = node_config[6]
+            memory = int(node_config[7])
 
         power_data = NODE_HARDWARE[node_type]
         cpu_p = CPU_POWER[power_data["cpu"]]
@@ -156,14 +166,31 @@ def print_simulation_configuration(config, nodes, node_type_by_name):
 
     print("\nConfigured node groups:")
     for n in config["nodes"]:
+        if isinstance(n, dict):
+            node_type = n["node_type"]
+            order = n["config_order"]
+            node_range = n["node_range"]
+            count = n["num_nodes"]
+            cpus = n["cpus_per_node"]
+            gpus = n["gpus_per_node"]
+            mem = n["memory_mb"]
+        else:
+            node_type = n[0]
+            order = n[1]
+            node_range = n[2]
+            count = n[3]
+            cpus = n[4]
+            gpus = n[5]
+            mem = n[7]
+
         print(
-            f"  type={n[0]:10s} "
-            f"order={n[1]:2s} "
-            f"range={n[2]:15s} "
-            f"count={n[3]:3s} "
-            f"CPUs={n[4]:4s} "
-            f"GPUs={n[5]:2s} "
-            f"mem={n[7]}"
+            f"  type={str(node_type):10s} "
+            f"order={str(order):2s} "
+            f"range={str(node_range):15s} "
+            f"count={str(count):3s} "
+            f"CPUs={str(cpus):4s} "
+            f"GPUs={str(gpus):2s} "
+            f"mem={mem}"
         )
 
     print("\nNodes instantiated in simulation:")

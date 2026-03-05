@@ -1,6 +1,9 @@
 ﻿from pathlib import Path
 import pandas as pd
 
+"""
+This is a one off helper script to convert a singular slurm accounting file (.txt format) to a .csv so that it can be visually inspected 
+"""
 
 def convert_to_csv(input_file, output_file):
     input_path = Path(input_file)

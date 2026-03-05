@@ -7,7 +7,7 @@ from pathlib import Path
 
 if __name__ == "__main__":
     print("Loading config...")
-    config = load_config(Path(__file__).with_name("config.txt"))
+    config = load_config(Path(__file__).with_name("config.json"))
     
     print("Loading simulation output (events + nodes)...")
     events_df, nodes_df = load_simulation_output(config)

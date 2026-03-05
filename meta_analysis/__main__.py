@@ -7,7 +7,7 @@ from common.config import load_config
 
 
 def main():
-    config = load_config(Path(__file__).with_name("config.txt"))
+    config = load_config(Path(__file__).with_name("config.json"))
     include_keys, higher_is_better_set, pareto_x, pareto_y = parse_config_lists(config)
 
     reports = load_reports(config["input_directory"])

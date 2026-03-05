@@ -14,7 +14,7 @@ def parse_list(s):
 def parse_config_lists(config):
     include_keys = parse_list(config.get("include_keys", ""))
     if not include_keys:
-        raise ValueError("include_keys is empty in config.txt")
+        raise ValueError("include_keys is empty in config.json")
 
     higher_is_better_set = set(parse_list(config.get("higher_is_better", "")))
     pareto_x = config.get("pareto_x", "dropped_work_pct")
