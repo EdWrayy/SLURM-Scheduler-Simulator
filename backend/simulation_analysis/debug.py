@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from common.config import load_config
+from backend.common.config import load_config
 from .input import load_simulation_output
 
 

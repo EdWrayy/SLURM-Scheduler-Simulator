@@ -1,0 +1,301 @@
+import json
+from contextlib import redirect_stderr, redirect_stdout
+from pathlib import Path
+
+from PySide6.QtWidgets import (
+    QComboBox,
+    QFileDialog,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
+
+from backend.common.config import load_config
+from backend.slurm_simulator.run_simulation import run_simulation
+from frontend.ui.settings_store import get_output_root_directory
+from frontend.ui.terminal_panel import TerminalPanel, TerminalStream
+
+
+class SimulationTab(QWidget):
+    def __init__(self) -> None:
+        super().__init__()
+        self.simulator_dir = Path(__file__).resolve().parents[2] / "backend" / "slurm_simulator"
+        self.simulator_config_path = self.simulator_dir / "config.json"
+        self.nodes_json_target = self.simulator_dir / "nodes.json"
+        self.power_json_target = self.simulator_dir / "power_constants.json"
+        self.simulation_config = self._load_simulation_config()
+
+        layout = QVBoxLayout()
+
+        title = QLabel("Simulation Configuration")
+        layout.addWidget(title)
+
+        files_group = QGroupBox("Input JSON Files")
+        files_layout = QFormLayout()
+
+        self.nodes_json_path = QLineEdit(
+            self.simulation_config.get("ui_nodes_json_source", str(self.nodes_json_target))
+        )
+        self.nodes_json_browse = QPushButton("Browse...")
+        self.nodes_json_browse.clicked.connect(self._browse_nodes_json)
+        self.nodes_json_path.editingFinished.connect(self._apply_nodes_json_from_textbox)
+        nodes_row = QHBoxLayout()
+        nodes_row.addWidget(self.nodes_json_path)
+        nodes_row.addWidget(self.nodes_json_browse)
+        files_layout.addRow("Nodes JSON:", nodes_row)
+
+        self.power_json_path = QLineEdit(
+            self.simulation_config.get("ui_power_json_source", str(self.power_json_target))
+        )
+        self.power_json_browse = QPushButton("Browse...")
+        self.power_json_browse.clicked.connect(self._browse_power_json)
+        self.power_json_path.editingFinished.connect(self._apply_power_json_from_textbox)
+        power_row = QHBoxLayout()
+        power_row.addWidget(self.power_json_path)
+        power_row.addWidget(self.power_json_browse)
+        files_layout.addRow("Power JSON:", power_row)
+
+        files_group.setLayout(files_layout)
+        layout.addWidget(files_group)
+
+        input_group = QGroupBox("Output Folders (Fixed by General Settings)")
+        input_layout = QFormLayout()
+
+        self.events_input_path = QLineEdit(self.simulation_config.get("output_events_directory", ""))
+        self.events_input_path.setReadOnly(True)
+        self.events_input_browse = QPushButton("Browse...")
+        self.events_input_browse.setEnabled(False)
+        events_row = QHBoxLayout()
+        events_row.addWidget(self.events_input_path)
+        events_row.addWidget(self.events_input_browse)
+        input_layout.addRow("Output Events Folder:", events_row)
+
+        self.nodes_input_path = QLineEdit(self.simulation_config.get("output_nodes_directory", ""))
+        self.nodes_input_path.setReadOnly(True)
+        self.nodes_input_browse = QPushButton("Browse...")
+        self.nodes_input_browse.setEnabled(False)
+        nodes_row = QHBoxLayout()
+        nodes_row.addWidget(self.nodes_input_path)
+        nodes_row.addWidget(self.nodes_input_browse)
+        input_layout.addRow("Output Nodes Folder:", nodes_row)
+
+        input_group.setLayout(input_layout)
+        layout.addWidget(input_group)
+
+        config_group = QGroupBox("Simulation Parameters")
+        config_layout = QFormLayout()
+
+        self.node_selection_combo = QComboBox()
+        self.node_selection_combo.addItems(
+            [
+                "FirstFitNodeSelection",
+                "CopyRealNodeSelection",
+                "BestFitByFreeCPUsNodeSelection",
+                "BestFitByFreeGPUsNodeSelection",
+                "JointCpuGpuBestFitNodeSelection",
+                "DominantResourcePackingNodeSelection",
+            ]
+        )
+        self._set_combo_selection(
+            self.node_selection_combo,
+            self.simulation_config.get("node_selection_strategy", "FirstFitNodeSelection"),
+        )
+        self.node_selection_combo.currentTextChanged.connect(self._save_node_selection_strategy)
+        self.node_selection_combo.currentTextChanged.connect(self._refresh_fixed_output_directories)
+        config_layout.addRow("Node Selection Strategy:", self.node_selection_combo)
+
+        self.resource_distribution_combo = QComboBox()
+        self.resource_distribution_combo.addItems(["DefaultResourceDistribution"])
+        self._set_combo_selection(
+            self.resource_distribution_combo,
+            self.simulation_config.get("resource_distribution_strategy", "DefaultResourceDistribution"),
+        )
+        self.resource_distribution_combo.currentTextChanged.connect(
+            self._save_resource_distribution_strategy
+        )
+        config_layout.addRow("Resource Distribution Strategy:", self.resource_distribution_combo)
+
+        self.power_model_combo = QComboBox()
+        self.power_model_combo.addItems(
+            ["LinearWithSleepPowerModel", "LinearWithIdlePowerModel", "ActiveOnlyPowerModel"]
+        )
+        self._set_combo_selection(
+            self.power_model_combo,
+            self.simulation_config.get("power_model", "LinearWithSleepPowerModel"),
+        )
+        self.power_model_combo.currentTextChanged.connect(self._save_power_model)
+        self.power_model_combo.currentTextChanged.connect(self._refresh_fixed_output_directories)
+        config_layout.addRow("Power Model:", self.power_model_combo)
+
+        config_group.setLayout(config_layout)
+        layout.addWidget(config_group)
+
+        self.run_simulation_button = QPushButton("Run Simulation")
+        self.run_simulation_button.clicked.connect(self._run_simulation)
+        layout.addWidget(self.run_simulation_button)
+
+        self.terminal_panel = TerminalPanel("Simulation Terminal")
+        layout.addWidget(self.terminal_panel)
+        self.setLayout(layout)
+        self._refresh_fixed_output_directories()
+
+    def _browse_nodes_json(self) -> None:
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Nodes JSON",
+            self.nodes_json_path.text(),
+            "JSON Files (*.json);;All Files (*)",
+        )
+        if not file_path:
+            return
+        self.nodes_json_path.setText(file_path)
+        self._apply_selected_json_to_target(file_path, self.nodes_json_target, "ui_nodes_json_source")
+
+    def _browse_power_json(self) -> None:
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Power Constants JSON",
+            self.power_json_path.text(),
+            "JSON Files (*.json);;All Files (*)",
+        )
+        if not file_path:
+            return
+        self.power_json_path.setText(file_path)
+        self._apply_selected_json_to_target(file_path, self.power_json_target, "ui_power_json_source")
+
+    def _apply_nodes_json_from_textbox(self) -> None:
+        selected = self.nodes_json_path.text().strip()
+        if selected:
+            self._apply_selected_json_to_target(selected, self.nodes_json_target, "ui_nodes_json_source")
+
+    def _apply_power_json_from_textbox(self) -> None:
+        selected = self.power_json_path.text().strip()
+        if selected:
+            self._apply_selected_json_to_target(selected, self.power_json_target, "ui_power_json_source")
+
+    def _save_events_output_directory(self) -> None:
+        directory = self.events_input_path.text().strip()
+        self._set_config_value("output_events_directory", directory)
+
+    def _save_nodes_output_directory(self) -> None:
+        directory = self.nodes_input_path.text().strip()
+        self._set_config_value("output_nodes_directory", directory)
+
+    def _save_node_selection_strategy(self, value: str) -> None:
+        self._set_config_value("node_selection_strategy", value)
+
+    def _save_resource_distribution_strategy(self, value: str) -> None:
+        self._set_config_value("resource_distribution_strategy", value)
+
+    def _save_power_model(self, value: str) -> None:
+        self._set_config_value("power_model", value)
+
+    def _run_simulation(self) -> None:
+        # Ensure manual path edits are persisted before running.
+        self._refresh_fixed_output_directories()
+        self._apply_nodes_json_from_textbox()
+        self._apply_power_json_from_textbox()
+        self._save_node_selection_strategy(self.node_selection_combo.currentText())
+        self._save_resource_distribution_strategy(self.resource_distribution_combo.currentText())
+        self._save_power_model(self.power_model_combo.currentText())
+
+        self.run_simulation_button.setEnabled(False)
+        terminal_stream = TerminalStream(self.terminal_panel)
+        self.terminal_panel.append_text("\n[simulation] Starting run...\n")
+
+        try:
+            config = load_config(self.simulator_config_path)
+            with redirect_stdout(terminal_stream), redirect_stderr(terminal_stream):
+                run_simulation(config)
+        except Exception as exc:
+            self.terminal_panel.append_text(f"\n[simulation] Failed: {exc}\n")
+            QMessageBox.critical(self, "Simulation Failed", str(exc))
+            self.run_simulation_button.setEnabled(True)
+            return
+
+        self.terminal_panel.append_text("\n[simulation] Completed successfully.\n")
+        QMessageBox.information(self, "Simulation Complete", "Simulation finished successfully.")
+        self.run_simulation_button.setEnabled(True)
+
+    def _apply_selected_json_to_target(
+        self, selected_path: str, target_path: Path, ui_source_key: str
+    ) -> None:
+        source = Path(selected_path)
+        if not source.exists() or not source.is_file():
+            QMessageBox.warning(self, "Invalid File", f"JSON file not found:\n{source}")
+            return
+
+        try:
+            with source.open("r", encoding="utf-8") as file:
+                data = json.load(file)
+        except (OSError, json.JSONDecodeError) as exc:
+            QMessageBox.warning(self, "Invalid JSON", f"Could not read JSON file:\n{source}\n\n{exc}")
+            return
+
+        try:
+            with target_path.open("w", encoding="utf-8") as file:
+                json.dump(data, file, indent=2)
+                file.write("\n")
+        except OSError as exc:
+            QMessageBox.warning(
+                self, "Write Failed", f"Could not update simulator JSON:\n{target_path}\n\n{exc}"
+            )
+            return
+
+        # Keep simulator config pointed at the local copied files.
+        self._set_config_value(ui_source_key, str(source))
+        if target_path == self.nodes_json_target:
+            self._set_config_value("nodes_config", target_path.name)
+        elif target_path == self.power_json_target:
+            self._set_config_value("power_constants_config", target_path.name)
+
+    def _set_combo_selection(self, combo: QComboBox, value: str) -> None:
+        index = combo.findText(value)
+        if index >= 0:
+            combo.setCurrentIndex(index)
+
+    def _load_simulation_config(self) -> dict:
+        try:
+            with self.simulator_config_path.open("r", encoding="utf-8") as file:
+                config = json.load(file)
+            if isinstance(config, dict):
+                return config
+        except (OSError, json.JSONDecodeError):
+            pass
+        return {}
+
+    def _set_config_value(self, key: str, value: str) -> None:
+        self.simulation_config[key] = value
+        self._save_simulation_config()
+
+    def _save_simulation_config(self) -> None:
+        with self.simulator_config_path.open("w", encoding="utf-8") as file:
+            json.dump(self.simulation_config, file, indent=2)
+            file.write("\n")
+
+    def _refresh_fixed_output_directories(self) -> None:
+        root = get_output_root_directory().strip()
+        if not root:
+            return
+
+        power_model = self.power_model_combo.currentText().strip() or str(
+            self.simulation_config.get("power_model", "")
+        )
+        node_strategy = self.node_selection_combo.currentText().strip() or str(
+            self.simulation_config.get("node_selection_strategy", "")
+        )
+
+        base = Path(root) / "simulation" / power_model / node_strategy
+        events_dir = str(base / "events")
+        nodes_dir = str(base / "nodes")
+
+        self.events_input_path.setText(events_dir)
+        self.nodes_input_path.setText(nodes_dir)
+        self._save_events_output_directory()
+        self._save_nodes_output_directory()

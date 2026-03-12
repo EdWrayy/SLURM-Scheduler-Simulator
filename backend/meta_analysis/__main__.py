@@ -3,7 +3,7 @@ from .input import  load_reports, build_dataframe, parse_config_lists
 from .metrics import make_rankings
 from .plots import plot_pareto
 from .report import save_rankings_json
-from common.config import load_config
+from backend.common.config import load_config
 
 
 def main():

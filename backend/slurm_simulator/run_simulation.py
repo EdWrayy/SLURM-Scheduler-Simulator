@@ -12,14 +12,16 @@ from .slurm_simulator import (
     LinearWithIdlePowerModel,
     LinearWithSleepPowerModel,
 )
-from .power_constants import NODE_HARDWARE, CPU_POWER, GPU_POWER, RAM_POWER
-from common.models import Job, JobEvent
+from .power_constants import load_power_constants
+from .nodes_config import resolve_node_configs
+from backend.common.models import Job, JobEvent
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
 import pyarrow.parquet as pq
 import pyarrow as pa
 import ast
+import re
 
 
 
@@ -62,25 +64,37 @@ def get_strategy_instance(strategy_name, strategy_type):
         raise ValueError("Unknown Strategy Type")
 
 
-def create_nodes(config):
+def create_nodes(config, node_configs):
     nodes = []
     node_type_by_name = {}
+    seen_node_names = set()
+    cpu_power, gpu_power, ram_power = load_power_constants(
+        config.get("power_constants_config")
+    )
 
     power_model = get_strategy_instance(
         config['power_model'],
         'power_model'
     )
 
-    for node_config in config["nodes"]:
+    for node_config in node_configs:
         if isinstance(node_config, dict):
             node_type = node_config["node_type"]
             config_order = int(node_config["config_order"])
             node_range = node_config["node_range"]
             num_nodes = int(node_config["num_nodes"])
             cpus = int(node_config["cpus_per_node"])
+            physical_cpus = int(node_config["physical_cpus_per_node"])
+            cores_per_physical_cpu = int(node_config["cores_per_physical_cpu"])
             gpus = int(node_config["gpus_per_node"])
             gpu_type = node_config["gpu_type"]
             memory = int(node_config["memory_mb"])
+            hardware = node_config.get("hardware")
+            if not isinstance(hardware, dict):
+                raise ValueError(f"Node '{node_type}' is missing hardware details ")
+            cpu_hw = hardware.get("cpu")
+            gpu_hw = hardware.get("gpu")
+            ram_hw = hardware.get("ram")
         else:
             node_type = node_config[0]
             config_order = int(node_config[1])
@@ -90,34 +104,45 @@ def create_nodes(config):
             gpus = int(node_config[5])
             gpu_type = node_config[6]
             memory = int(node_config[7])
+            raise ValueError(
+                f"Node '{node_type}' is in legacy list format; please use object format with 'hardware'"
+            )
 
-        power_data = NODE_HARDWARE[node_type]
-        cpu_p = CPU_POWER[power_data["cpu"]]
+        if cpu_hw not in cpu_power:
+            raise ValueError(f"Node '{node_type}' references unknown CPU power key '{cpu_hw}'")
+        cpu_p = cpu_power[cpu_hw]
         cpu_idle_power = cpu_p["idle_W"]
         cpu_max_power  = cpu_p["max_W"]
 
-        gpu_type_hw = power_data["gpu"]  # can be None
-        if gpu_type_hw is None:
+        if gpu_hw is None:
             gpu_idle_power = 0.0
             gpu_max_power  = 0.0
         else:
-            gpu_p = GPU_POWER[gpu_type_hw]
+            if gpu_hw not in gpu_power:
+                raise ValueError(f"Node '{node_type}' references unknown GPU power key '{gpu_hw}'")
+            gpu_p = gpu_power[gpu_hw]
             gpu_idle_power = gpu_p["idle_W"]
             gpu_max_power  = gpu_p["max_W"]
 
-        ram_type_hw = power_data["ram"]
-        ram_p = RAM_POWER[ram_type_hw]
+        if ram_hw not in ram_power:
+            raise ValueError(f"Node '{node_type}' references unknown RAM power key '{ram_hw}'")
+        ram_p = ram_power[ram_hw]
         ram_idle_power = ram_p["idle_W_per_GB"]
         ram_max_power  = ram_p["max_W_per_GB"]
                 
-        for i in range(1, num_nodes+1):
-            node_name = get_real_node_name(node_type, i)
+        node_names_and_ids = expand_node_names_from_range(node_type, node_range, num_nodes)
+        for node_name, node_id in node_names_and_ids:
+            if node_name in seen_node_names:
+                raise ValueError(f"Duplicate node name generated: '{node_name}'")
+            seen_node_names.add(node_name)
             node_type_by_name[node_name] = node_type  
 
             node = Node(
                 name=node_name,
-                id = i, #Used for sorting nodes for selection
+                id = node_id, #Used for sorting nodes for selection
                 list_position=config_order,
+                physical_CPUs=physical_cpus,
+                cores_per_physical_CPU=cores_per_physical_cpu,
                 total_CPUs= cpus,
                 total_GPUs=gpus,
                 total_memory=memory,
@@ -134,27 +159,34 @@ def create_nodes(config):
     return nodes, node_type_by_name
 
 
-def get_real_node_name(node_type, id): 
-    """
-    Maps a node's type and id number to its name in the real logs for Iridis X.
-    Examples:
-      ruby, 1      -> ruby001
-      swarma, 1    -> swarma1001
-      swarmh, 12   -> swarmh1012
-      other, 1     -> other01
-    """
+def expand_node_names_from_range(node_type, node_range, num_nodes):
+    pattern = rf"{re.escape(node_type)}\[(\d+)(?:-(\d+))?\]"
+    match = re.fullmatch(pattern, str(node_range))
+    if match is None:
+        raise ValueError(
+            f"Invalid node_range '{node_range}' for node_type '{node_type}'. "
+            "Expected format like 'ruby[001-074]' or 'coral[01]'."
+        )
 
-    if node_type == "ruby":
-        # pad to 3 digits
-        return f"{node_type}{id:03d}"
+    start_str = match.group(1)
+    end_str = match.group(2) if match.group(2) is not None else start_str
+    width = max(len(start_str), len(end_str))
+    start = int(start_str)
+    end = int(end_str)
 
-    elif node_type in {"swarmh", "swarma"}:
-        return f"{node_type}{1000 + id:04d}"
-    else:
-        # pad to 2 digits
-        return f"{node_type}{id:02d}"
+    if end < start:
+        raise ValueError(f"Invalid node_range '{node_range}': end index is less than start index")
 
-def print_simulation_configuration(config, nodes, node_type_by_name):
+    expected_num_nodes = end - start + 1
+    if expected_num_nodes != num_nodes:
+        raise ValueError(
+            f"node_range '{node_range}' implies {expected_num_nodes} nodes, "
+            f"but num_nodes is {num_nodes} for node_type '{node_type}'"
+        )
+
+    return [(f"{node_type}{idx:0{width}d}", idx) for idx in range(start, end + 1)]
+
+def print_simulation_configuration(config, node_configs, nodes, node_type_by_name):
     print("\n" + "="*70)
     print("SLURM SIMULATION CONFIGURATION")
     print("="*70)
@@ -165,13 +197,15 @@ def print_simulation_configuration(config, nodes, node_type_by_name):
     print(f"  Power model: {config['power_model']}")
 
     print("\nConfigured node groups:")
-    for n in config["nodes"]:
+    for n in node_configs:
         if isinstance(n, dict):
             node_type = n["node_type"]
             order = n["config_order"]
             node_range = n["node_range"]
             count = n["num_nodes"]
             cpus = n["cpus_per_node"]
+            physical_cpus = n["physical_cpus_per_node"]
+            cores_per_physical_cpu = n["cores_per_physical_cpu"]
             gpus = n["gpus_per_node"]
             mem = n["memory_mb"]
         else:
@@ -180,6 +214,8 @@ def print_simulation_configuration(config, nodes, node_type_by_name):
             node_range = n[2]
             count = n[3]
             cpus = n[4]
+            physical_cpus = "?"
+            cores_per_physical_cpu = "?"
             gpus = n[5]
             mem = n[7]
 
@@ -188,6 +224,8 @@ def print_simulation_configuration(config, nodes, node_type_by_name):
             f"order={str(order):2s} "
             f"range={str(node_range):15s} "
             f"count={str(count):3s} "
+            f"pCPUs={str(physical_cpus):2s} "
+            f"cores/CPU={str(cores_per_physical_cpu):2s} "
             f"CPUs={str(cpus):4s} "
             f"GPUs={str(gpus):2s} "
             f"mem={mem}"
@@ -337,6 +375,8 @@ def append_records(event_records, node_records, i, event, state, dt_seconds, eve
         node_records.append({
             'event_index': i,
             'node_name': n_state['name'],
+            'physical_CPUs': n_state['physical_CPUs'],
+            'cores_per_physical_CPU': n_state['cores_per_physical_CPU'],
             'CPUs_in_use': n_state['CPUs_in_use'],
             'GPUs_in_use': n_state['GPUs_in_use'],
             'memory_in_use': n_state['memory_in_use'],
@@ -353,8 +393,9 @@ def append_records(event_records, node_records, i, event, state, dt_seconds, eve
 
 
 def run_simulation(config):
-    nodes, node_type_by_name = create_nodes(config)
-    print_simulation_configuration(config, nodes, node_type_by_name)
+    node_configs = resolve_node_configs(config)
+    nodes, node_type_by_name = create_nodes(config, node_configs)
+    print_simulation_configuration(config, node_configs, nodes, node_type_by_name)
 
     node_selection = get_strategy_instance(config['node_selection_strategy'], 'node_selection_strategy')
     resource_distribution = get_strategy_instance(config['resource_distribution_strategy'], 'resource_distribution_strategy')

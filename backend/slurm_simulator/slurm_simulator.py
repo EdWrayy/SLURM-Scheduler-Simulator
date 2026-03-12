@@ -1,12 +1,15 @@
-from common.models import Job
+from backend.common.models import Job
 
 
 class Node:
-    def __init__(self, name, id, list_position, total_CPUs, total_GPUs, total_memory, CPU_Max_Power, GPU_Max_Power, RAM_Max_Power, CPU_Idle_Power, GPU_Idle_Power, RAM_Idle_Power, power_model):
+    def __init__(self, name, id, list_position, physical_CPUs, cores_per_physical_CPU, total_CPUs, total_GPUs, total_memory, CPU_Max_Power, GPU_Max_Power, RAM_Max_Power, CPU_Idle_Power, GPU_Idle_Power, RAM_Idle_Power, power_model):
         self.name = name
         self.id = id 
         self.list_position = list_position #The position in the slurm.conf listing, relevant for resource distirbution.
 
+        self.physical_CPUs = physical_CPUs
+        self.cores_per_physical_CPU = cores_per_physical_CPU
+        self.total_physical_cores = self.physical_CPUs * self.cores_per_physical_CPU
         self.total_CPUs = total_CPUs
         self.total_GPUs = total_GPUs
         self.total_memory = total_memory
@@ -29,6 +32,12 @@ class Node:
 
     def _refresh_power(self) -> None:
         self.current_power_consumption = self.power_model.calculate_current_power_consumption(self)
+
+    def cpu_utilisation_fraction(self) -> float:
+        if self.total_physical_cores <= 0:
+            return 0.0
+        # CPU requests are in logical CPUs; cap at 1.0 against physical cores.
+        return min(1.0, self.CPUs_in_use / self.total_physical_cores)
 
     def run_job(self, CPUs_required, GPUs_required, memory_required):
         self.CPUs_in_use += CPUs_required
@@ -60,7 +69,7 @@ class ActiveOnlyPowerModel(NodePowerModel):
     """Simply assumes we only use power for the exact hardware used, no idling."""
 
     def calculate_current_power_consumption(self, node):
-        cpu_u = node.CPUs_in_use * node.CPU_MAX_Power_Consumption
+        cpu_u = node.cpu_utilisation_fraction() * (node.physical_CPUs * node.CPU_MAX_Power_Consumption)
         gpu_u = node.GPUs_in_use * node.GPU_MAX_Power_Consumption
         mem_GB = node.memory_in_use / 1024
         mem_u = mem_GB * node.RAM_MAX_Power_Consumption
@@ -73,17 +82,16 @@ class LinearWithIdlePowerModel(NodePowerModel):
     Cannot power down any nodes
     """
     def calculate_current_power_consumption(self, node):
-        
-        cpu_u = node.CPUs_in_use * node.CPU_MAX_Power_Consumption
+        cpu_idle_total = node.physical_CPUs * node.CPU_IDLE_Power_Consumption
+        cpu_max_total = node.physical_CPUs * node.CPU_MAX_Power_Consumption
+        cpu_u = cpu_idle_total + node.cpu_utilisation_fraction() * (cpu_max_total - cpu_idle_total)
         gpu_u = node.GPUs_in_use * node.GPU_MAX_Power_Consumption
         mem_GB = node.memory_in_use / 1024
         mem_u = mem_GB * node.RAM_MAX_Power_Consumption
-        
-        cpu_idle = (node.total_CPUs - node.CPUs_in_use) * node.CPU_IDLE_Power_Consumption
         gpu_idle = (node.total_GPUs - node.GPUs_in_use) *  node.GPU_IDLE_Power_Consumption
         mem_idle = ((node.total_memory - node.memory_in_use) / 1024.0) * node.RAM_IDLE_Power_Consumption
 
-        return cpu_u + gpu_u + mem_u + cpu_idle + gpu_idle + mem_idle
+        return cpu_u + gpu_u + mem_u + gpu_idle + mem_idle
     
 
 class LinearWithSleepPowerModel(NodePowerModel):
@@ -97,16 +105,16 @@ class LinearWithSleepPowerModel(NodePowerModel):
         if node.CPUs_in_use == 0 and node.GPUs_in_use == 0 and node.memory_in_use == 0:
             return 0
         
-        cpu_u = node.CPUs_in_use * node.CPU_MAX_Power_Consumption
+        cpu_idle_total = node.physical_CPUs * node.CPU_IDLE_Power_Consumption
+        cpu_max_total = node.physical_CPUs * node.CPU_MAX_Power_Consumption
+        cpu_u = cpu_idle_total + node.cpu_utilisation_fraction() * (cpu_max_total - cpu_idle_total)
         gpu_u = node.GPUs_in_use * node.GPU_MAX_Power_Consumption
         mem_GB = node.memory_in_use / 1024
         mem_u = mem_GB * node.RAM_MAX_Power_Consumption
-        
-        cpu_idle = (node.total_CPUs - node.CPUs_in_use) * node.CPU_IDLE_Power_Consumption
         gpu_idle = (node.total_GPUs - node.GPUs_in_use) *  node.GPU_IDLE_Power_Consumption
         mem_idle = ((node.total_memory - node.memory_in_use) / 1024.0) * node.RAM_IDLE_Power_Consumption
 
-        return cpu_u + gpu_u + mem_u + cpu_idle + gpu_idle + mem_idle
+        return cpu_u + gpu_u + mem_u + gpu_idle + mem_idle
     
 
 
@@ -547,6 +555,8 @@ class SlurmSimulation:
             'active_jobs': len(self.job_tracker),
             'nodes': [{
                 'name': n.name,
+                'physical_CPUs': n.physical_CPUs,
+                'cores_per_physical_CPU': n.cores_per_physical_CPU,
                 'CPUs_in_use': n.CPUs_in_use,
                 'GPUs_in_use': n.GPUs_in_use,
                 'memory_in_use': n.memory_in_use,
@@ -563,4 +573,3 @@ class SlurmSimulation:
 
 
         
-

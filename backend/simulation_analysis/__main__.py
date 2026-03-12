@@ -1,4 +1,4 @@
-from common.config import load_config
+from backend.common.config import load_config
 from .input import load_simulation_output
 from .metrics import calculate_all_metrics
 from .plots import make_plots

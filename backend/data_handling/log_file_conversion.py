@@ -1,8 +1,8 @@
 import pandas as pd
 import re
 from pathlib import Path
-from common.models import Job, JobEvent
-from common.config import load_config
+from backend.common.models import Job, JobEvent
+from backend.common.config import load_config
 
 
 """

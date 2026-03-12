@@ -1,7 +1,0 @@
-{
-  "input_events_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\Simulation Output Parquet Files\\Sleep Power Model\\CopyRealNodeSelection\\events",
-  "input_nodes_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\Simulation Output Parquet Files\\Sleep Power Model\\CopyRealNodeSelection\\nodes",
-  "output_report_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\Simulation Analysis Results\\Sleep Power Model\\First Fit",
-  "show_last_job_submission_line": true,
-  "baseline_total_energy_kwh": 4079354.072
-}
