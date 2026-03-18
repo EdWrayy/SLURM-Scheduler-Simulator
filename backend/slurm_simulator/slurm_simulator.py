@@ -1,4 +1,5 @@
 from backend.common.models import Job
+import math
 
 
 class Node:
@@ -9,7 +10,6 @@ class Node:
 
         self.physical_CPUs = physical_CPUs
         self.cores_per_physical_CPU = cores_per_physical_CPU
-        self.total_physical_cores = self.physical_CPUs * self.cores_per_physical_CPU
         self.total_CPUs = total_CPUs
         self.total_GPUs = total_GPUs
         self.total_memory = total_memory
@@ -33,11 +33,6 @@ class Node:
     def _refresh_power(self) -> None:
         self.current_power_consumption = self.power_model.calculate_current_power_consumption(self)
 
-    def cpu_utilisation_fraction(self) -> float:
-        if self.total_physical_cores <= 0:
-            return 0.0
-        # CPU requests are in logical CPUs; cap at 1.0 against physical cores.
-        return min(1.0, self.CPUs_in_use / self.total_physical_cores)
 
     def run_job(self, CPUs_required, GPUs_required, memory_required):
         self.CPUs_in_use += CPUs_required
@@ -69,9 +64,9 @@ class ActiveOnlyPowerModel(NodePowerModel):
     """Simply assumes we only use power for the exact hardware used, no idling."""
 
     def calculate_current_power_consumption(self, node):
-        cpu_u = node.cpu_utilisation_fraction() * (node.physical_CPUs * node.CPU_MAX_Power_Consumption)
+        cpu_u = math.ceil(node.CPUs_in_use / node.cores_per_physical_CPU) * node.CPU_MAX_Power_Consumption
         gpu_u = node.GPUs_in_use * node.GPU_MAX_Power_Consumption
-        mem_GB = node.memory_in_use / 1024
+        mem_GB = node.memory_in_use / (1024 ** 3)
         mem_u = mem_GB * node.RAM_MAX_Power_Consumption
 
         return cpu_u + gpu_u + mem_u
@@ -80,18 +75,19 @@ class LinearWithIdlePowerModel(NodePowerModel):
     """
     Assumes that all hardware is either in use or idling if a node is powered on. 
     Cannot power down any nodes
+    Although energy savings cannot be made by powering down nodes, they can still be made by prioritising more energy efficient nodes.
     """
     def calculate_current_power_consumption(self, node):
-        cpu_idle_total = node.physical_CPUs * node.CPU_IDLE_Power_Consumption
-        cpu_max_total = node.physical_CPUs * node.CPU_MAX_Power_Consumption
-        cpu_u = cpu_idle_total + node.cpu_utilisation_fraction() * (cpu_max_total - cpu_idle_total)
-        gpu_u = node.GPUs_in_use * node.GPU_MAX_Power_Consumption
-        mem_GB = node.memory_in_use / 1024
-        mem_u = mem_GB * node.RAM_MAX_Power_Consumption
-        gpu_idle = (node.total_GPUs - node.GPUs_in_use) *  node.GPU_IDLE_Power_Consumption
-        mem_idle = ((node.total_memory - node.memory_in_use) / 1024.0) * node.RAM_IDLE_Power_Consumption
+        cpu_u = math.ceil(node.CPUs_in_use / node.cores_per_physical_CPU) * node.CPU_MAX_Power_Consumption
+        cpu_idle =  math.ceil((node.total_CPUs - node.CPUs_in_use) / node.cores_per_physical_CPU) * node.CPU_MAX_Power_Consumption
 
-        return cpu_u + gpu_u + mem_u + gpu_idle + mem_idle
+        gpu_u = node.GPUs_in_use * node.GPU_MAX_Power_Consumption
+        gpu_idle = (node.total_GPUs - node.GPUs_in_use) *  node.GPU_IDLE_Power_Consumption
+        mem_GB = node.memory_in_use / (1024 ** 3)
+        mem_u = mem_GB * node.RAM_MAX_Power_Consumption
+        mem_idle = ((node.total_memory - node.memory_in_use) / (1024 ** 3)) * node.RAM_IDLE_Power_Consumption
+
+        return cpu_u + gpu_u + mem_u + cpu_idle + gpu_idle + mem_idle
     
 
 class LinearWithSleepPowerModel(NodePowerModel):
@@ -105,16 +101,16 @@ class LinearWithSleepPowerModel(NodePowerModel):
         if node.CPUs_in_use == 0 and node.GPUs_in_use == 0 and node.memory_in_use == 0:
             return 0
         
-        cpu_idle_total = node.physical_CPUs * node.CPU_IDLE_Power_Consumption
-        cpu_max_total = node.physical_CPUs * node.CPU_MAX_Power_Consumption
-        cpu_u = cpu_idle_total + node.cpu_utilisation_fraction() * (cpu_max_total - cpu_idle_total)
-        gpu_u = node.GPUs_in_use * node.GPU_MAX_Power_Consumption
-        mem_GB = node.memory_in_use / 1024
-        mem_u = mem_GB * node.RAM_MAX_Power_Consumption
-        gpu_idle = (node.total_GPUs - node.GPUs_in_use) *  node.GPU_IDLE_Power_Consumption
-        mem_idle = ((node.total_memory - node.memory_in_use) / 1024.0) * node.RAM_IDLE_Power_Consumption
+        cpu_u = math.ceil(node.CPUs_in_use / node.cores_per_physical_CPU) * node.CPU_MAX_Power_Consumption
+        cpu_idle =  math.ceil((node.total_CPUs - node.CPUs_in_use) / node.cores_per_physical_CPU) * node.CPU_MAX_Power_Consumption
 
-        return cpu_u + gpu_u + mem_u + gpu_idle + mem_idle
+        gpu_u = node.GPUs_in_use * node.GPU_MAX_Power_Consumption
+        gpu_idle = (node.total_GPUs - node.GPUs_in_use) *  node.GPU_IDLE_Power_Consumption
+        mem_GB = node.memory_in_use / (1024 ** 3)
+        mem_u = mem_GB * node.RAM_MAX_Power_Consumption
+        mem_idle = ((node.total_memory - node.memory_in_use) / (1024 ** 3)) * node.RAM_IDLE_Power_Consumption
+
+        return cpu_u + gpu_u + mem_u + cpu_idle + gpu_idle + mem_idle
     
 
 
@@ -177,6 +173,9 @@ class NodeSelectionStrategy:
         }
 
     def spread_select(self, job, ordered_nodes, success_reason):
+        """
+        Spreads resource selection across nodes when we cannot fit an entire job on any one node
+        """
         cpus_left = job.CPUs_required
         gpus_left = job.GPUs_required
         mem_left = job.memory_required

@@ -36,8 +36,6 @@ def _validate_nodes(nodes, source):
             raise ValueError(
                 f"Node '{node_type}' in {source} must include positive integer 'cores_per_physical_cpu'"
             )
-
-
 def load_nodes_config(path):
     config_path = Path(path)
     with config_path.open("r", encoding="utf-8") as f:

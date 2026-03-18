@@ -23,6 +23,9 @@ import pyarrow as pa
 import ast
 import re
 
+BYTES_PER_MIB = 1024 ** 2
+BYTES_PER_GIB = 1024 ** 3
+
 
 
 
@@ -78,35 +81,23 @@ def create_nodes(config, node_configs):
     )
 
     for node_config in node_configs:
-        if isinstance(node_config, dict):
-            node_type = node_config["node_type"]
-            config_order = int(node_config["config_order"])
-            node_range = node_config["node_range"]
-            num_nodes = int(node_config["num_nodes"])
-            cpus = int(node_config["cpus_per_node"])
-            physical_cpus = int(node_config["physical_cpus_per_node"])
-            cores_per_physical_cpu = int(node_config["cores_per_physical_cpu"])
-            gpus = int(node_config["gpus_per_node"])
-            gpu_type = node_config["gpu_type"]
-            memory = int(node_config["memory_mb"])
-            hardware = node_config.get("hardware")
-            if not isinstance(hardware, dict):
-                raise ValueError(f"Node '{node_type}' is missing hardware details ")
-            cpu_hw = hardware.get("cpu")
-            gpu_hw = hardware.get("gpu")
-            ram_hw = hardware.get("ram")
-        else:
-            node_type = node_config[0]
-            config_order = int(node_config[1])
-            node_range = node_config[2]
-            num_nodes = int(node_config[3])
-            cpus = int(node_config[4])
-            gpus = int(node_config[5])
-            gpu_type = node_config[6]
-            memory = int(node_config[7])
-            raise ValueError(
-                f"Node '{node_type}' is in legacy list format; please use object format with 'hardware'"
-            )
+        node_type = node_config["node_type"]
+        config_order = int(node_config["config_order"])
+        node_range = node_config["node_range"]
+        num_nodes = int(node_config["num_nodes"])
+        cpus = int(node_config["cpus_per_node"])
+        physical_cpus = int(node_config["physical_cpus_per_node"])
+        cores_per_physical_cpu = int(node_config["cores_per_physical_cpu"])
+        gpus = int(node_config["gpus_per_node"])
+        gpu_type = node_config["gpu_type"]
+        memory_mb = int(node_config["memory_mb"])
+        memory = memory_mb * BYTES_PER_MIB
+        hardware = node_config.get("hardware")
+        if not isinstance(hardware, dict):
+            raise ValueError(f"Node '{node_type}' is missing hardware details ")
+        cpu_hw = hardware.get("cpu")
+        gpu_hw = hardware.get("gpu")
+        ram_hw = hardware.get("ram")
 
         if cpu_hw not in cpu_power:
             raise ValueError(f"Node '{node_type}' references unknown CPU power key '{cpu_hw}'")
@@ -198,26 +189,15 @@ def print_simulation_configuration(config, node_configs, nodes, node_type_by_nam
 
     print("\nConfigured node groups:")
     for n in node_configs:
-        if isinstance(n, dict):
-            node_type = n["node_type"]
-            order = n["config_order"]
-            node_range = n["node_range"]
-            count = n["num_nodes"]
-            cpus = n["cpus_per_node"]
-            physical_cpus = n["physical_cpus_per_node"]
-            cores_per_physical_cpu = n["cores_per_physical_cpu"]
-            gpus = n["gpus_per_node"]
-            mem = n["memory_mb"]
-        else:
-            node_type = n[0]
-            order = n[1]
-            node_range = n[2]
-            count = n[3]
-            cpus = n[4]
-            physical_cpus = "?"
-            cores_per_physical_cpu = "?"
-            gpus = n[5]
-            mem = n[7]
+        node_type = n["node_type"]
+        order = n["config_order"]
+        node_range = n["node_range"]
+        count = n["num_nodes"]
+        cpus = n["cpus_per_node"]
+        physical_cpus = n["physical_cpus_per_node"]
+        cores_per_physical_cpu = n["cores_per_physical_cpu"]
+        gpus = n["gpus_per_node"]
+        mem = n["memory_mb"]
 
         print(
             f"  type={str(node_type):10s} "
@@ -228,7 +208,7 @@ def print_simulation_configuration(config, node_configs, nodes, node_type_by_nam
             f"cores/CPU={str(cores_per_physical_cpu):2s} "
             f"CPUs={str(cpus):4s} "
             f"GPUs={str(gpus):2s} "
-            f"mem={mem}"
+            f"mem_mb={mem}"
         )
 
     print("\nNodes instantiated in simulation:")
@@ -316,7 +296,7 @@ def compute_job_work_metadata(row):
 
     job_cpu_seconds = float(row.CPUs_required) * job_duration_seconds
     job_gpu_seconds = float(row.GPUs_required) * job_duration_seconds
-    job_mem_gb_seconds = (float(row.memory_required) / 1024.0) * job_duration_seconds
+    job_mem_gb_seconds = (float(row.memory_required) / BYTES_PER_GIB) * job_duration_seconds
 
     return start_ts, end_ts, job_duration_seconds, job_cpu_seconds, job_gpu_seconds, job_mem_gb_seconds
 

@@ -19,19 +19,70 @@ NODE_RENAME = {
 }
 
 
-def parse_alloc_tres(alloc_tres):
+MEMORY_UNIT_TO_BYTES = {
+    "K": 1024,
+    "M": 1024 ** 2,
+    "G": 1024 ** 3,
+    "T": 1024 ** 4,
+    "P": 1024 ** 5,
+}
+
+
+def parse_memory_to_bytes(mem_value, cpus=None, nodes=None):
+    """
+    Parse Slurm memory strings such as:
+      30720M, 64G, 2T, 512K, 1P, 4Gc, 8Mn
+
+    Unit suffixes are binary (KiB/MiB/GiB/TiB/PiB).
+    Optional scope suffixes:
+      c -> per CPU
+      n -> per node
+
+    Returns integer bytes.
+    """
+    if mem_value is None:
+        return None
+
+    token = str(mem_value).strip()
+    if token == "":
+        return None
+
+    m = re.fullmatch(r"(?i)(\d+(?:\.\d+)?)([KMGTP]?)([CN]?)", token)
+    if not m:
+        raise ValueError(f"Unrecognized memory format: {mem_value}")
+
+    amount = float(m.group(1))
+    unit = (m.group(2) or "M").upper()
+    scope = (m.group(3) or "").lower()
+
+    total_bytes = int(amount * MEMORY_UNIT_TO_BYTES[unit])
+
+    if scope == "c":
+        if cpus is None:
+            raise ValueError(f"Memory value '{mem_value}' is per CPU but cpu count is missing")
+        total_bytes *= int(cpus)
+    elif scope == "n":
+        if nodes is None:
+            raise ValueError(f"Memory value '{mem_value}' is per node but node count is missing")
+        total_bytes *= int(nodes)
+
+    return total_bytes
+
+
+def parse_alloc_tres(alloc_tres, nodes_required=None):
     """
     Parse AllocTRES such as:
       billing=4,cpu=4,gres/gpu=1,mem=30720M,node=1
 
-    Returns (cpus, gpus, memory_mb).
+    Returns (cpus, gpus, memory_bytes).
     """
     cpus = None
     gpus = 0
-    mem_mb = None
+    mem_bytes = None
+    mem_raw = None
 
     if pd.isna(alloc_tres):
-        return cpus, gpus, mem_mb
+        return cpus, gpus, mem_bytes
 
     parts = str(alloc_tres).split(",")
     for part in parts:
@@ -44,11 +95,14 @@ def parse_alloc_tres(alloc_tres):
         if key == "cpu":
             cpus = int(val)
         elif key == "mem":
-            mem_mb = int(val.rstrip("M"))
+            mem_raw = val
         elif key == "gpu" or key.startswith("gres/gpu"):
             gpus = int(val)
 
-    return cpus, gpus, mem_mb
+    if mem_raw is not None:
+        mem_bytes = parse_memory_to_bytes(mem_raw, cpus=cpus, nodes=nodes_required)
+
+    return cpus, gpus, mem_bytes
 
 
 def expand_node_list(node_list: str):
@@ -124,7 +178,10 @@ def load_job_events(df):
     for _, row in df.iterrows():
         job_id = str(row["JobID"])
         nodes_required = int(row["AllocNodes"]) if not pd.isna(row["AllocNodes"]) else 0
-        cpus_required, gpus_required, memory_required = parse_alloc_tres(row.get("AllocTRES", None))
+        cpus_required, gpus_required, memory_required = parse_alloc_tres(
+            row.get("AllocTRES", None),
+            nodes_required=nodes_required,
+        )
 
         node_list_value = row.get("NodeList", None)
         if pd.isna(node_list_value) or str(node_list_value).strip().lower() == "none assigned":
