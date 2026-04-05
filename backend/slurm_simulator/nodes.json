@@ -11,10 +11,12 @@
       "gpus_per_node": 0,
       "gpu_type": "none",
       "memory_mb": 240000,
+      "dimms_per_node": 15,
       "hardware": {
         "cpu": "epyc_7452",
         "gpu": null,
-        "ram": "ddr4"
+        "ram": "ddr4",
+        "dimm_size_GB": 16
       }
     },
     {
@@ -28,10 +30,12 @@
       "gpus_per_node": 0,
       "gpu_type": "none",
       "memory_mb": 240000,
+      "dimms_per_node": 15,
       "hardware": {
         "cpu": "epyc_7502",
         "gpu": null,
-        "ram": "ddr4"
+        "ram": "ddr4",
+        "dimm_size_GB": 16
       }
     },
     {
@@ -45,10 +49,12 @@
       "gpus_per_node": 8,
       "gpu_type": "h100swarm",
       "memory_mb": 1900000,
+      "dimms_per_node": 58,
       "hardware": {
         "cpu": "xeon_8468",
         "gpu": "h100",
-        "ram": "ddr5"
+        "ram": "ddr5",
+        "dimm_size_GB": 32
       }
     },
     {
@@ -62,10 +68,12 @@
       "gpus_per_node": 4,
       "gpu_type": "a100swarm",
       "memory_mb": 900000,
+      "dimms_per_node": 28,
       "hardware": {
         "cpu": "epyc_7413",
         "gpu": "a100_sxm",
-        "ram": "ddr5"
+        "ram": "ddr5",
+        "dimm_size_GB": 32
       }
     },
     {
@@ -79,10 +87,12 @@
       "gpus_per_node": 2,
       "gpu_type": "a100",
       "memory_mb": 500000,
+      "dimms_per_node": 16,
       "hardware": {
         "cpu": "xeon_6336y",
         "gpu": "a100_80gb",
-        "ram": "ddr5"
+        "ram": "ddr5",
+        "dimm_size_GB": 32
       }
     },
     {
@@ -96,10 +106,12 @@
       "gpus_per_node": 7,
       "gpu_type": "l4swarm",
       "memory_mb": 900000,
+      "dimms_per_node": 28,
       "hardware": {
         "cpu": "xeon_5418Y",
         "gpu": "l4",
-        "ram": "ddr5"
+        "ram": "ddr5",
+        "dimm_size_GB": 32
       }
     },
     {
@@ -113,10 +125,12 @@
       "gpus_per_node": 7,
       "gpu_type": "l4swarm",
       "memory_mb": 900000,
+      "dimms_per_node": 28,
       "hardware": {
         "cpu": "xeon_5418Y",
         "gpu": "l4",
-        "ram": "ddr5"
+        "ram": "ddr5",
+        "dimm_size_GB": 32
       }
     },
     {
@@ -130,10 +144,12 @@
       "gpus_per_node": 8,
       "gpu_type": "l4",
       "memory_mb": 750000,
+      "dimms_per_node": 23,
       "hardware": {
         "cpu": "epyc_9255",
         "gpu": "l4",
-        "ram": "ddr5"
+        "ram": "ddr5",
+        "dimm_size_GB": 32
       }
     },
     {
@@ -147,10 +163,12 @@
       "gpus_per_node": 8,
       "gpu_type": "l40",
       "memory_mb": 750000,
+      "dimms_per_node": 23,
       "hardware": {
         "cpu": "epyc_9255",
         "gpu": "l40s",
-        "ram": "ddr5"
+        "ram": "ddr5",
+        "dimm_size_GB": 32
       }
     },
     {
@@ -164,10 +182,12 @@
       "gpus_per_node": 4,
       "gpu_type": "h200",
       "memory_mb": 1500000,
+      "dimms_per_node": 46,
       "hardware": {
         "cpu": "epyc_9255",
         "gpu": "h200",
-        "ram": "ddr5"
+        "ram": "ddr5",
+        "dimm_size_GB": 32
       }
     },
     {
@@ -181,10 +201,12 @@
       "gpus_per_node": 8,
       "gpu_type": "mi300x",
       "memory_mb": 2300000,
+      "dimms_per_node": 71,
       "hardware": {
         "cpu": "epyc_9534",
         "gpu": "mi300x",
-        "ram": "ddr5"
+        "ram": "ddr5",
+        "dimm_size_GB": 32
       }
     },
     {
@@ -198,10 +220,12 @@
       "gpus_per_node": 2,
       "gpu_type": "h200",
       "memory_mb": 750000,
+      "dimms_per_node": 23,
       "hardware": {
         "cpu": "epyc_9275f",
         "gpu": "h200",
-        "ram": "ddr5"
+        "ram": "ddr5",
+        "dimm_size_GB": 32
       }
     }
   ]

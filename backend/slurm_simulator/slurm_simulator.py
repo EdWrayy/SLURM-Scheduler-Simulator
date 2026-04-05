@@ -3,8 +3,9 @@ import math
 
 
 class Node:
-    def __init__(self, name, id, list_position, physical_CPUs, cores_per_physical_CPU, total_CPUs, total_GPUs, total_memory, CPU_Max_Power, GPU_Max_Power, RAM_Max_Power, CPU_Idle_Power, GPU_Idle_Power, RAM_Idle_Power, power_model):
+    def __init__(self, name, node_type, id, list_position, physical_CPUs, cores_per_physical_CPU, total_CPUs, total_GPUs, total_memory, CPU_Max_Power, GPU_Max_Power, RAM_Power, power_model):
         self.name = name
+        self.node_type = node_type
         self.id = id 
         self.list_position = list_position #The position in the slurm.conf listing, relevant for resource distirbution.
 
@@ -20,11 +21,7 @@ class Node:
 
         self.CPU_MAX_Power_Consumption = CPU_Max_Power
         self.GPU_MAX_Power_Consumption = GPU_Max_Power
-        self.RAM_MAX_Power_Consumption = RAM_Max_Power
-
-        self.CPU_IDLE_Power_Consumption = CPU_Idle_Power
-        self.GPU_IDLE_Power_Consumption = GPU_Idle_Power
-        self.RAM_IDLE_Power_Consumption = RAM_Idle_Power
+        self.RAM_Power_Consumption = RAM_Power
 
         self.current_power_consumption = 0
         self.power_model = power_model
@@ -54,47 +51,48 @@ class NodePowerModel:
     """
     Base class for power model.
     Determines how to compute a node's current power utilisation.
-    Must be stateless as all nodes share the same power model object.
     """
     def calculate_current_power_consumption(self, node):
         raise NotImplementedError
 
-    
+
 class ActiveOnlyPowerModel(NodePowerModel):
-    """Simply assumes we only use power for the exact hardware used, no idling."""
+    """Simply assumes we only use power for the exact hardware used, no idling, no powerdown."""
 
     def calculate_current_power_consumption(self, node):
         cpu_u = math.ceil(node.CPUs_in_use / node.cores_per_physical_CPU) * node.CPU_MAX_Power_Consumption
         gpu_u = node.GPUs_in_use * node.GPU_MAX_Power_Consumption
-        mem_GB = node.memory_in_use / (1024 ** 3)
-        mem_u = mem_GB * node.RAM_MAX_Power_Consumption
 
-        return cpu_u + gpu_u + mem_u
+        return cpu_u + gpu_u + node.RAM_Power_Consumption
     
 class LinearWithIdlePowerModel(NodePowerModel):
     """
-    Assumes that all hardware is either in use or idling if a node is powered on. 
+    Assumes that all hardware is either in use or idling if a node is powered on.
     Cannot power down any nodes
     Although energy savings cannot be made by powering down nodes, they can still be made by prioritising more energy efficient nodes.
     """
+    def __init__(self, cpu_idle_fraction, gpu_idle_fraction):
+        self.cpu_idle_fraction = cpu_idle_fraction
+        self.gpu_idle_fraction = gpu_idle_fraction
+
     def calculate_current_power_consumption(self, node):
         cpu_u = math.ceil(node.CPUs_in_use / node.cores_per_physical_CPU) * node.CPU_MAX_Power_Consumption
-        cpu_idle =  math.ceil((node.total_CPUs - node.CPUs_in_use) / node.cores_per_physical_CPU) * node.CPU_MAX_Power_Consumption
+        cpu_idle =  math.ceil((node.total_CPUs - node.CPUs_in_use) / node.cores_per_physical_CPU) * node.CPU_MAX_Power_Consumption * self.cpu_idle_fraction
 
         gpu_u = node.GPUs_in_use * node.GPU_MAX_Power_Consumption
-        gpu_idle = (node.total_GPUs - node.GPUs_in_use) *  node.GPU_IDLE_Power_Consumption
-        mem_GB = node.memory_in_use / (1024 ** 3)
-        mem_u = mem_GB * node.RAM_MAX_Power_Consumption
-        mem_idle = ((node.total_memory - node.memory_in_use) / (1024 ** 3)) * node.RAM_IDLE_Power_Consumption
+        gpu_idle = (node.total_GPUs - node.GPUs_in_use) *  node.GPU_MAX_Power_Consumption  * self.gpu_idle_fraction
 
-        return cpu_u + gpu_u + mem_u + cpu_idle + gpu_idle + mem_idle
+        return cpu_u + gpu_u + cpu_idle + gpu_idle + node.RAM_Power_Consumption
     
 
 class LinearWithSleepPowerModel(NodePowerModel):
     """
-    Assumes that all hardware is either in use or idling if a node is powered on. 
+    Assumes that all hardware is either in use or idling if a node is powered on.
     Can sleep an entire node if no jobs running on it (using no power)
     """
+    def __init__(self, cpu_idle_fraction, gpu_idle_fraction):
+        self.cpu_idle_fraction = cpu_idle_fraction
+        self.gpu_idle_fraction = gpu_idle_fraction
 
     def calculate_current_power_consumption(self, node):
 
@@ -102,15 +100,12 @@ class LinearWithSleepPowerModel(NodePowerModel):
             return 0
         
         cpu_u = math.ceil(node.CPUs_in_use / node.cores_per_physical_CPU) * node.CPU_MAX_Power_Consumption
-        cpu_idle =  math.ceil((node.total_CPUs - node.CPUs_in_use) / node.cores_per_physical_CPU) * node.CPU_MAX_Power_Consumption
+        cpu_idle =  math.ceil((node.total_CPUs - node.CPUs_in_use) / node.cores_per_physical_CPU) * node.CPU_MAX_Power_Consumption  * self.cpu_idle_fraction
 
         gpu_u = node.GPUs_in_use * node.GPU_MAX_Power_Consumption
-        gpu_idle = (node.total_GPUs - node.GPUs_in_use) *  node.GPU_IDLE_Power_Consumption
-        mem_GB = node.memory_in_use / (1024 ** 3)
-        mem_u = mem_GB * node.RAM_MAX_Power_Consumption
-        mem_idle = ((node.total_memory - node.memory_in_use) / (1024 ** 3)) * node.RAM_IDLE_Power_Consumption
+        gpu_idle = (node.total_GPUs - node.GPUs_in_use) *  node.GPU_MAX_Power_Consumption  * self.gpu_idle_fraction
 
-        return cpu_u + gpu_u + mem_u + cpu_idle + gpu_idle + mem_idle
+        return cpu_u + gpu_u  + cpu_idle + gpu_idle + node.RAM_Power_Consumption
     
 
 
@@ -209,6 +204,11 @@ class NodeSelectionStrategy:
             }
 
         return [], self.build_failure_info(job, ordered_nodes)
+    
+    def filter_by_type(self, job, node_list):
+        if not job.allowed_node_types:
+            return node_list
+        return [n for n in node_list if n.node_type in job.allowed_node_types]
 
 class CopyRealNodeSelection(NodeSelectionStrategy): 
     """ Places jobs exactly where the real logs placed them for benchmarking. """ 
@@ -239,6 +239,7 @@ class FirstFitNodeSelection(NodeSelectionStrategy):
 
     def select_nodes(self, job, node_list):
         # 1) Prefer a single node that can host everything
+        node_list = self.filter_by_type(job, node_list)
         for node in node_list:
             if self.has_capacity_for_all(node, job):
                 return [node], {
@@ -289,6 +290,7 @@ class BestFitByFreeCPUsNodeSelection(NodeSelectionStrategy):
     """
 
     def select_nodes(self, job, node_list):
+        node_list = self.filter_by_type(job, node_list)
         candidates = [node for node in node_list if self.has_capacity_for_all(node, job)]
         if candidates:
             best = min(
@@ -326,6 +328,7 @@ class BestFitByFreeGPUsNodeSelection(NodeSelectionStrategy):
     """
 
     def select_nodes(self, job, node_list):
+        node_list = self.filter_by_type(job, node_list)
         candidates = [node for node in node_list if self.has_capacity_for_all(node, job)]
         if candidates:
             best = min(
@@ -362,6 +365,7 @@ class JointCpuGpuBestFitNodeSelection(NodeSelectionStrategy):
     """
 
     def select_nodes(self, job, node_list):
+        node_list = self.filter_by_type(job, node_list)
         candidates = [node for node in node_list if self.has_capacity_for_all(node, job)]
         if candidates:
             best = min(
@@ -419,6 +423,7 @@ class DominantResourcePackingNodeSelection(NodeSelectionStrategy):
         return (node.CPUs_in_use / node.total_CPUs) if node.total_CPUs > 0 else 0.0
 
     def select_nodes(self, job, node_list):
+        node_list = self.filter_by_type(job, node_list)
         dominant = self._dominant_resource(job, node_list)
 
         candidates = [node for node in node_list if self.has_capacity_for_all(node, job)]

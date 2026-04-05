@@ -17,7 +17,7 @@ class JobEvent:
 class Job:
     """Represents a SLURM job with resource requirements and scheduling information."""
 
-    def __init__(self, id, nodes_required, CPUs_required, GPUs_required, memory_required, start_time, end_time, real_node_selection=None):
+    def __init__(self, id, nodes_required, CPUs_required, GPUs_required, memory_required, start_time, end_time, real_node_selection=None, allowed_node_types=None):
         self.id = id
         self.nodes_required = nodes_required
         self.CPUs_required = CPUs_required
@@ -26,4 +26,5 @@ class Job:
         self.start_time = start_time
         self.end_time = end_time
         self.node_utilisation = {}
-        self.real_node_selection = real_node_selection  # Exclusively for copy real node selection simulation, can be ignored otherwise
+        self.real_node_selection = real_node_selection  
+        self.allowed_node_types = allowed_node_types

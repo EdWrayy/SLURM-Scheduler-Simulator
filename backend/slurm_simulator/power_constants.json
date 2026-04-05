@@ -1,80 +1,68 @@
 {
+
+  "cpu_idle_fraction": 0.2,
+  "gpu_idle_fraction": 0.125,
+
   "cpu_power": {
+
     "epyc_7452": {
-      "idle_W": 70,
       "max_W": 155
     },
     "epyc_7502": {
-      "idle_W": 75,
       "max_W": 180
     },
     "epyc_7413": {
-      "idle_W": 75,
       "max_W": 180
     },
     "epyc_9255": {
-      "idle_W": 90,
       "max_W": 200
     },
     "epyc_9275f": {
-      "idle_W": 100,
       "max_W": 320
     },
     "epyc_9534": {
-      "idle_W": 120,
       "max_W": 280
     },
     "xeon_6336y": {
-      "idle_W": 80,
       "max_W": 185
     },
     "xeon_8468": {
-      "idle_W": 120,
       "max_W": 350
     },
     "xeon_5418Y": {
-      "idle_W": 120,
       "max_W": 185
     }
   },
   "gpu_power": {
+
     "a100_80gb": {
-      "idle_W": 50,
       "max_W": 300
     },
     "a100_sxm": {
-      "idle_W": 50,
       "max_W": 400
     },
     "h100": {
-      "idle_W": 60,
       "max_W": 400
     },
     "h200": {
-      "idle_W": 65,
       "max_W": 600
     },
     "l4": {
-      "idle_W": 15,
       "max_W": 72
     },
     "l40s": {
-      "idle_W": 40,
       "max_W": 350
     },
     "mi300x": {
-      "idle_W": 80,
       "max_W": 750
     }
   },
   "ram_power": {
     "ddr4": {
-      "idle_W_per_GB": 0.25,
-      "max_W_per_GB": 0.5
+      "16": { "W_per_dimm": 5.4 }
     },
     "ddr5": {
-      "idle_W_per_GB": 0.25,
-      "max_W_per_GB": 0.5
+      "32": { "W_per_dimm": 12 }
     }
   }
 }

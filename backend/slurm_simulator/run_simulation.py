@@ -71,14 +71,19 @@ def create_nodes(config, node_configs):
     nodes = []
     node_type_by_name = {}
     seen_node_names = set()
-    cpu_power, gpu_power, ram_power = load_power_constants(
+    cpu_power, gpu_power, ram_power, cpu_idle_fraction, gpu_idle_fraction = load_power_constants(
         config.get("power_constants_config")
     )
 
-    power_model = get_strategy_instance(
-        config['power_model'],
-        'power_model'
-    )
+    power_model_name = config['power_model']
+    if power_model_name == 'ActiveOnlyPowerModel':
+        power_model = ActiveOnlyPowerModel()
+    elif power_model_name == 'LinearWithIdlePowerModel':
+        power_model = LinearWithIdlePowerModel(cpu_idle_fraction, gpu_idle_fraction)
+    elif power_model_name == 'LinearWithSleepPowerModel':
+        power_model = LinearWithSleepPowerModel(cpu_idle_fraction, gpu_idle_fraction)
+    else:
+        raise ValueError(f"Unknown power model: {power_model_name}")
 
     for node_config in node_configs:
         node_type = node_config["node_type"]
@@ -102,24 +107,24 @@ def create_nodes(config, node_configs):
         if cpu_hw not in cpu_power:
             raise ValueError(f"Node '{node_type}' references unknown CPU power key '{cpu_hw}'")
         cpu_p = cpu_power[cpu_hw]
-        cpu_idle_power = cpu_p["idle_W"]
         cpu_max_power  = cpu_p["max_W"]
 
         if gpu_hw is None:
-            gpu_idle_power = 0.0
-            gpu_max_power  = 0.0
+            gpu_max_power = 0.0
         else:
             if gpu_hw not in gpu_power:
                 raise ValueError(f"Node '{node_type}' references unknown GPU power key '{gpu_hw}'")
             gpu_p = gpu_power[gpu_hw]
-            gpu_idle_power = gpu_p["idle_W"]
-            gpu_max_power  = gpu_p["max_W"]
+            gpu_max_power = gpu_p["max_W"]
 
+        dimms_per_node = int(node_config["dimms_per_node"])
+        dimm_size_GB = int(hardware["dimm_size_GB"])
         if ram_hw not in ram_power:
             raise ValueError(f"Node '{node_type}' references unknown RAM power key '{ram_hw}'")
-        ram_p = ram_power[ram_hw]
-        ram_idle_power = ram_p["idle_W_per_GB"]
-        ram_max_power  = ram_p["max_W_per_GB"]
+        dimm_size_key = str(dimm_size_GB)
+        if dimm_size_key not in ram_power[ram_hw]:
+            raise ValueError(f"Node '{node_type}' references unknown DIMM size '{dimm_size_GB}GB' for '{ram_hw}'")
+        ram_fixed_power = dimms_per_node * ram_power[ram_hw][dimm_size_key]["W_per_dimm"]
                 
         node_names_and_ids = expand_node_names_from_range(node_type, node_range, num_nodes)
         for node_name, node_id in node_names_and_ids:
@@ -130,6 +135,7 @@ def create_nodes(config, node_configs):
 
             node = Node(
                 name=node_name,
+                node_type=node_type,
                 id = node_id, #Used for sorting nodes for selection
                 list_position=config_order,
                 physical_CPUs=physical_cpus,
@@ -137,12 +143,9 @@ def create_nodes(config, node_configs):
                 total_CPUs= cpus,
                 total_GPUs=gpus,
                 total_memory=memory,
-                CPU_Max_Power = cpu_max_power, 
-                GPU_Max_Power = gpu_max_power, 
-                RAM_Max_Power = ram_max_power, 
-                CPU_Idle_Power = cpu_idle_power, 
-                GPU_Idle_Power = gpu_idle_power, 
-                RAM_Idle_Power = ram_idle_power,
+                CPU_Max_Power = cpu_max_power,
+                GPU_Max_Power = gpu_max_power,
+                RAM_Power = ram_fixed_power,
                 power_model = power_model
             )
             nodes.append(node)
@@ -276,7 +279,9 @@ def build_job_event_from_row(row):
         memory_required=row.memory_required,
         start_time=row.start_time,
         end_time=row.end_time,
-        real_node_selection=ast.literal_eval(row.real_node_selection) if pd.notna(row.real_node_selection) else None
+        real_node_selection=ast.literal_eval(row.real_node_selection) if pd.notna(row.real_node_selection) else None,
+        allowed_node_types=ast.literal_eval(row.allowed_node_types) if pd.notna(row.allowed_node_types) else None
+
     )
     event = JobEvent(job, row.action, row.time)
     return job, event

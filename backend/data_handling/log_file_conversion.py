@@ -203,6 +203,8 @@ def load_job_events(df):
             start_time=start_time,
             end_time=end_time,
             real_node_selection=real_selected_nodes,
+            allowed_node_types=list({re.sub(r'\d+$', '', name) for name in real_selected_nodes}) if real_selected_nodes else None
+
         )
 
         events.append(JobEvent(job=job, action="start", time=start_time))
@@ -317,7 +319,9 @@ def convert_logs(config):
             'end_time': event.job.end_time,
             'real_node_selection': str(event.job.real_node_selection) if event.job.real_node_selection else None,
             'action': event.action,
-            'time': event.time
+            'time': event.time,
+            'allowed_node_types': str(event.job.allowed_node_types) if event.job.allowed_node_types else None,
+
         }
         for event in events])
 
