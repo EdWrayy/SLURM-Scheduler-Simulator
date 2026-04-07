@@ -1,4 +1,4 @@
-{
+﻿{
   "nodes": [
     {
       "node_type": "ruby",
@@ -17,7 +17,11 @@
         "gpu": null,
         "ram": "ddr4",
         "dimm_size_GB": 16
-      }
+      },
+      "network_islands":[
+          "ruby[001-046]",
+          "ruby[047-074]"
+      ]
     },
     {
       "node_type": "ruby",
@@ -36,7 +40,10 @@
         "gpu": null,
         "ram": "ddr4",
         "dimm_size_GB": 16
-      }
+      },
+      "network_islands":[
+          "ruby[075-090]"
+      ]
     },
     {
       "node_type": "swarmh",
@@ -55,7 +62,11 @@
         "gpu": "h100",
         "ram": "ddr5",
         "dimm_size_GB": 32
-      }
+      },
+      "network_islands":[
+          "swarmh1001",
+          "swarmh1002"
+      ]
     },
     {
       "node_type": "swarma",
@@ -74,7 +85,11 @@
         "gpu": "a100_sxm",
         "ram": "ddr5",
         "dimm_size_GB": 32
-      }
+      },
+      "network_islands":[
+          "swarma[1001,1003,1005]",
+          "swarma[1002,1004]"
+      ]
     },
     {
       "node_type": "rose",
@@ -93,32 +108,17 @@
         "gpu": "a100_80gb",
         "ram": "ddr5",
         "dimm_size_GB": 32
-      }
-    },
-    {
-      "node_type": "swarml4",
-      "config_order": 4,
-      "node_range": "swarml4[01-03]",
-      "num_nodes": 3,
-      "physical_cpus_per_node": 4,
-      "cores_per_physical_cpu": 24,
-      "cpus_per_node": 96,
-      "gpus_per_node": 7,
-      "gpu_type": "l4swarm",
-      "memory_mb": 900000,
-      "dimms_per_node": 28,
-      "hardware": {
-        "cpu": "xeon_5418Y",
-        "gpu": "l4",
-        "ram": "ddr5",
-        "dimm_size_GB": 32
-      }
+      },
+      "network_islands":[
+          "rose[01,03,05,07,09,11,13]",
+          "rose[02,04,06,08,10,12]"
+      ]
     },
     {
       "node_type": "ecsai",
-      "config_order": 5,
-      "node_range": "ecsai[01-06]",
-      "num_nodes": 6,
+      "config_order": 4,
+      "node_range": "ecsai[01-09]",
+      "num_nodes": 9,
       "physical_cpus_per_node": 4,
       "cores_per_physical_cpu": 24,
       "cpus_per_node": 96,
@@ -131,11 +131,15 @@
         "gpu": "l4",
         "ram": "ddr5",
         "dimm_size_GB": 32
-      }
+      },
+      "network_islands":[
+          "ecsai[01,03,05,08]",
+          "ecsai[02,04,06,07,09]"
+      ]
     },
     {
       "node_type": "cotton",
-      "config_order": 6,
+      "config_order": 5,
       "node_range": "cotton[01-02]",
       "num_nodes": 2,
       "physical_cpus_per_node": 2,
@@ -150,11 +154,14 @@
         "gpu": "l4",
         "ram": "ddr5",
         "dimm_size_GB": 32
-      }
+      },
+      "network_islands":[
+          "cotton[01,02]"
+      ]
     },
     {
       "node_type": "coral",
-      "config_order": 7,
+      "config_order": 6,
       "node_range": "coral[01]",
       "num_nodes": 1,
       "physical_cpus_per_node": 2,
@@ -169,11 +176,14 @@
         "gpu": "l40s",
         "ram": "ddr5",
         "dimm_size_GB": 32
-      }
+      },
+      "network_islands":[
+          "coral01"
+      ]
     },
     {
       "node_type": "blossom",
-      "config_order": 8,
+      "config_order": 7,
       "node_range": "blossom[01-04]",
       "num_nodes": 4,
       "physical_cpus_per_node": 2,
@@ -188,11 +198,14 @@
         "gpu": "h200",
         "ram": "ddr5",
         "dimm_size_GB": 32
-      }
+      },
+      "network_islands":[
+        "blossom[01-04]"
+      ]
     },
     {
       "node_type": "cherry",
-      "config_order": 9,
+      "config_order": 8,
       "node_range": "cherry[01]",
       "num_nodes": 1,
       "physical_cpus_per_node": 2,
@@ -207,11 +220,14 @@
         "gpu": "mi300x",
         "ram": "ddr5",
         "dimm_size_GB": 32
-      }
+      },
+      "network_islands":[
+        "cherry01"
+      ]
     },
     {
       "node_type": "flamingo",
-      "config_order": 10,
+      "config_order": 9,
       "node_range": "flamingo[01-02]",
       "num_nodes": 2,
       "physical_cpus_per_node": 2,
@@ -226,7 +242,10 @@
         "gpu": "h200",
         "ram": "ddr5",
         "dimm_size_GB": 32
-      }
+      },
+      "network_islands":[
+        "flamingo[01-02]"
+      ]
     }
   ]
 }

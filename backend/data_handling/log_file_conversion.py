@@ -10,6 +10,9 @@ Swarml4 [04-09] nodes changed names to ecsai [01-06] midway through the logs.
 We therefore rename them from the start for the sake of consistency
 """
 NODE_RENAME = {
+    "swarml401": "ecsai07",
+    "swarml402": "ecsai08",
+    "swarml403": "ecsai09",
     "swarml404": "ecsai01",
     "swarml405": "ecsai02",
     "swarml406": "ecsai03",

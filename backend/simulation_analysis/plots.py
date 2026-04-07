@@ -28,19 +28,19 @@ def make_plots(snapshots_df, config, events_df):
     plots["active_nodes_over_time"] = fig
 
     
-    # Dropped job composition (by limiting resource)
+    # Dropped job composition (by failure reason)
     starts = events_df[events_df["action"] == "start"]
     dropped = starts[starts["success"] == False].copy()
 
     if not dropped.empty:
-        dropped["limiting_resources"] = (
-            dropped["limiting_resources"]
+        dropped["failure_reason"] = (
+            dropped["failure_reason"]
             .fillna("unknown")
             .astype(str)
         )
 
         breakdown = (
-            dropped.groupby("limiting_resources")
+            dropped.groupby("failure_reason")
             .size()
             .sort_values(ascending=False)
         )
@@ -48,8 +48,8 @@ def make_plots(snapshots_df, config, events_df):
         fig, ax = plt.subplots()
         ax.bar(breakdown.index, breakdown.values)
 
-        ax.set_title("Dropped jobs by limiting resource")
-        ax.set_xlabel("Limiting resource")
+        ax.set_title("Dropped jobs by failure reason")
+        ax.set_xlabel("Failure reason")
         ax.set_ylabel("Number of dropped jobs")
 
         ax.tick_params(axis="x", rotation=30)

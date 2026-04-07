@@ -3,7 +3,7 @@ from .slurm_simulator import (
     Node,
     DefaultResourceDistribution,
     CopyRealNodeSelection,
-    FirstFitNodeSelection,
+    NaiveFirstFit,
     BestFitByFreeCPUsNodeSelection,
     BestFitByFreeGPUsNodeSelection,
     JointCpuGpuBestFitNodeSelection,
@@ -34,7 +34,7 @@ def get_strategy_instance(strategy_name, strategy_type):
         if strategy_name == "CopyRealNodeSelection":
             return CopyRealNodeSelection()
         elif strategy_name == "FirstFitNodeSelection":
-            return FirstFitNodeSelection()
+            return NaiveFirstFit()
         elif strategy_name == "BestFitByFreeCPUsNodeSelection":
             return BestFitByFreeCPUsNodeSelection()
         elif strategy_name == "BestFitByFreeGPUsNodeSelection":
@@ -150,7 +150,42 @@ def create_nodes(config, node_configs):
             )
             nodes.append(node)
 
-    return nodes, node_type_by_name
+    node_by_name = {node.name: node for node in nodes}
+
+    island_groups = {}
+    for node_config in node_configs:
+        node_type = node_config["node_type"]
+        for island_str in node_config.get("network_islands", []):
+            island_names = expand_island_to_node_names(island_str)
+            group = [node_by_name[n] for n in island_names if n in node_by_name]
+            if group:
+                island_groups.setdefault(node_type, []).append(group)
+
+    nodes_in_islands = {node for groups in island_groups.values() for group in groups for node in group}
+    for node in nodes:
+        if node not in nodes_in_islands:
+            island_groups.setdefault(node.node_type, []).append([node])
+
+    return nodes, node_type_by_name, island_groups
+
+
+def expand_island_to_node_names(island_str):
+    match = re.fullmatch(r'([a-zA-Z]+\d*)\[([^\]]+)\]', island_str)
+    if match is None:
+        return {island_str}
+    prefix = match.group(1)
+    range_part = match.group(2)
+    names = set()
+    for token in range_part.split(','):
+        token = token.strip()
+        if '-' in token:
+            start_str, end_str = token.split('-')
+            width = max(len(start_str), len(end_str))
+            for i in range(int(start_str), int(end_str) + 1):
+                names.add(f"{prefix}{str(i).zfill(width)}")
+        else:
+            names.add(f"{prefix}{token}")
+    return names
 
 
 def expand_node_names_from_range(node_type, node_range, num_nodes):
@@ -309,33 +344,24 @@ def compute_job_work_metadata(row):
 def execute_event(slurm_sim, event):
     event_success = None
     failure_reason = None
-    limiting_resources = None
 
     if event.action == 'start':
         event_success, info = slurm_sim.place_job(event.job)
         if not event_success:
             failure_reason = info.get("reason")
-            lr = info.get("limiting_resources", [])
-            if lr is None:
-                limiting_resources = None
-            elif isinstance(lr, str):
-                limiting_resources = lr
-            else:
-                limiting_resources = ",".join(map(str, lr))
 
     elif event.action == 'finish':
         release_success = slurm_sim.release_job(event.job.id)
         event_success = release_success
         if not release_success:
             failure_reason = "release_failed"
-            limiting_resources = "release_failed"
     else:
         raise ValueError("Unknown event action")
 
-    return event_success, failure_reason, limiting_resources
+    return event_success, failure_reason
 
 
-def append_records(event_records, node_records, i, event, state, dt_seconds, event_success, failure_reason, limiting_resources, start_ts, end_ts, job_duration_seconds, job_cpu_seconds, job_gpu_seconds, job_mem_gb_seconds):
+def append_records(event_records, node_records, i, event, state, dt_seconds, event_success, failure_reason, start_ts, end_ts, job_duration_seconds, job_cpu_seconds, job_gpu_seconds, job_mem_gb_seconds):
     event_records.append({
         'event_index': i,
         'time': event.time,
@@ -346,7 +372,6 @@ def append_records(event_records, node_records, i, event, state, dt_seconds, eve
 
         'success': event_success,
         'failure_reason': failure_reason,
-        'limiting_resources': limiting_resources,
 
         'job_start_time': start_ts,
         'job_end_time': end_ts,
@@ -379,7 +404,7 @@ def append_records(event_records, node_records, i, event, state, dt_seconds, eve
 
 def run_simulation(config):
     node_configs = resolve_node_configs(config)
-    nodes, node_type_by_name = create_nodes(config, node_configs)
+    nodes, node_type_by_name, island_groups = create_nodes(config, node_configs)
     print_simulation_configuration(config, node_configs, nodes, node_type_by_name)
 
     node_selection = get_strategy_instance(config['node_selection_strategy'], 'node_selection_strategy')
@@ -389,6 +414,7 @@ def run_simulation(config):
 
     slurm_sim = SlurmSimulation(
         nodes,
+        island_groups,
         node_selection,
         resource_distribution,
     )
@@ -427,11 +453,11 @@ def run_simulation(config):
 
         start_ts, end_ts, job_duration_seconds, job_cpu_seconds, job_gpu_seconds, job_mem_gb_seconds = compute_job_work_metadata(row)
 
-        event_success, failure_reason, limiting_resources = execute_event(slurm_sim, event)
+        event_success, failure_reason = execute_event(slurm_sim, event)
 
         state = slurm_sim.get_current_state()
 
-        append_records(event_records, node_records, i, event, state, dt_seconds, event_success, failure_reason, limiting_resources, start_ts, end_ts, job_duration_seconds, job_cpu_seconds, job_gpu_seconds, job_mem_gb_seconds)
+        append_records(event_records, node_records, i, event, state, dt_seconds, event_success, failure_reason, start_ts, end_ts, job_duration_seconds, job_cpu_seconds, job_gpu_seconds, job_mem_gb_seconds)
 
     if event_records:
         save_monthly_data(current_month, event_records, node_records, output_events_directory, output_nodes_directory, output_events_filename, output_nodes_filename, months_processed)

@@ -17,7 +17,6 @@ def calculate_all_metrics(events_df, nodes_df, config):
     dt_seconds (float64)
     success (bool)
     failure_reason (object)
-    limiting_resources (object)
     job_start_time (datetime64[ns])
     job_end_time (datetime64[ns])
     job_duration_seconds (float64)
@@ -132,7 +131,7 @@ def calculate_all_metrics(events_df, nodes_df, config):
     """
     DF NOW:
     
-    - Event Columns (event_index, time, action, job_id, active_jobs, dt_seconds, success, failure_reason, limiting_resources, job_start_time, job_end_time, job_duration_seconds, job_cpu_seconds, job_gpu_seconds, job_mem_gb_seconds)
+    - Event Columns (event_index, time, action, job_id, active_jobs, dt_seconds, success, failure_reason, job_start_time, job_end_time, job_duration_seconds, job_cpu_seconds, job_gpu_seconds, job_mem_gb_seconds)
     - Aggregated Node Data (total_cpus, total_gpus, total_mem, cpus_used, gpus_used, mem_used, cluster_power_W, active_nodes)
     - Active Node Data (free_cpus_sum, free_gpus_sum, free_mem_sum)
     - Per-event Column (cpu_util, gpu_util, mem_util, energy_J, cumulative_energy_J, free_cpus_per_active_node, free_gpus_per_active_node, free_mem_per_active_node)

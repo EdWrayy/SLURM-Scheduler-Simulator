@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 from backend.common.config import load_config
 from backend.data_handling.convert_to_csv import convert_to_csv
 from backend.data_handling.log_file_conversion import convert_logs
+from backend.data_handling.workload_breakdown import workload_breakdown
 from frontend.ui.terminal_panel import TerminalPanel, TerminalStream
 
 
@@ -97,6 +98,25 @@ class DataHandlingTab(QWidget):
         self.run_csv_conversion_button.clicked.connect(self._run_csv_conversion)
         layout.addWidget(self.run_csv_conversion_button)
 
+        breakdown_group = QGroupBox("Workload Breakdown")
+        breakdown_layout = QFormLayout()
+
+        self.breakdown_parquet_file_path = QLineEdit(config["breakdown_parquet_file"])
+        self.breakdown_parquet_file_browse = QPushButton("Browse...")
+        self.breakdown_parquet_file_browse.clicked.connect(self._browse_breakdown_parquet_file)
+        self.breakdown_parquet_file_path.editingFinished.connect(self._save_breakdown_parquet_file)
+        breakdown_input_row = QHBoxLayout()
+        breakdown_input_row.addWidget(self.breakdown_parquet_file_path)
+        breakdown_input_row.addWidget(self.breakdown_parquet_file_browse)
+        breakdown_layout.addRow("Parquet File:", breakdown_input_row)
+
+        breakdown_group.setLayout(breakdown_layout)
+        layout.addWidget(breakdown_group)
+
+        self.run_breakdown_button = QPushButton("Run Workload Breakdown")
+        self.run_breakdown_button.clicked.connect(self._run_workload_breakdown)
+        layout.addWidget(self.run_breakdown_button)
+
         self.terminal_panel = TerminalPanel("Data Handling Terminal")
         layout.addWidget(self.terminal_panel)
         self.setLayout(layout)
@@ -109,6 +129,7 @@ class DataHandlingTab(QWidget):
             "output_filename": "slurm_logs",
             "csv_input_file": "",
             "csv_output_file": "",
+            "breakdown_parquet_file": "",
         }
 
         try:
@@ -120,6 +141,7 @@ class DataHandlingTab(QWidget):
                 "output_filename": str(config.get("output_filename", "slurm_logs")),
                 "csv_input_file": str(config.get("csv_input_file", "")),
                 "csv_output_file": str(config.get("csv_output_file", "")),
+                "breakdown_parquet_file": str(config.get("breakdown_parquet_file", "")),
             }
         except (OSError, json.JSONDecodeError):
             return default_config
@@ -181,6 +203,20 @@ class DataHandlingTab(QWidget):
     def _save_csv_output_file(self) -> None:
         self._set_config_value("csv_output_file", self.csv_output_file_path.text().strip())
 
+    def _browse_breakdown_parquet_file(self) -> None:
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Parquet File",
+            "",
+            "Parquet Files (*.parquet);;All Files (*)",
+        )
+        if file_path:
+            self.breakdown_parquet_file_path.setText(file_path)
+            self._save_breakdown_parquet_file()
+
+    def _save_breakdown_parquet_file(self) -> None:
+        self._set_config_value("breakdown_parquet_file", self.breakdown_parquet_file_path.text().strip())
+
     def _run_parquet_conversion(self) -> None:
         self._save_parquet_input_directory()
         self._save_parquet_output_directory()
@@ -233,6 +269,30 @@ class DataHandlingTab(QWidget):
         self.terminal_panel.append_text("\n[data-handling] CSV conversion completed successfully.\n")
         QMessageBox.information(self, "CSV Conversion Complete", "CSV conversion finished.")
         self.run_csv_conversion_button.setEnabled(True)
+
+    def _run_workload_breakdown(self) -> None:
+        self._save_breakdown_parquet_file()
+
+        parquet_file = self.breakdown_parquet_file_path.text().strip()
+        if not parquet_file:
+            QMessageBox.warning(self, "Missing File", "Please provide a parquet file path.")
+            return
+
+        self.run_breakdown_button.setEnabled(False)
+        terminal_stream = TerminalStream(self.terminal_panel)
+        self.terminal_panel.append_text("\n[data-handling] Running workload breakdown...\n")
+
+        try:
+            with redirect_stdout(terminal_stream), redirect_stderr(terminal_stream):
+                workload_breakdown(parquet_file)
+        except Exception as exc:
+            self.terminal_panel.append_text(f"\n[data-handling] Workload breakdown failed: {exc}\n")
+            QMessageBox.critical(self, "Workload Breakdown Failed", str(exc))
+            self.run_breakdown_button.setEnabled(True)
+            return
+
+        self.terminal_panel.append_text("\n[data-handling] Workload breakdown complete.\n")
+        self.run_breakdown_button.setEnabled(True)
 
     def _set_config_value(self, key: str, value: str) -> None:
         config = self._load_conversion_config()
