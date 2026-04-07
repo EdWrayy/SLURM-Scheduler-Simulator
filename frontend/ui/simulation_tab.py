@@ -94,17 +94,13 @@ class SimulationTab(QWidget):
         self.node_selection_combo = QComboBox()
         self.node_selection_combo.addItems(
             [
-                "FirstFitNodeSelection",
+                "NaiveFirstFit",
                 "CopyRealNodeSelection",
-                "BestFitByFreeCPUsNodeSelection",
-                "BestFitByFreeGPUsNodeSelection",
-                "JointCpuGpuBestFitNodeSelection",
-                "DominantResourcePackingNodeSelection",
             ]
         )
         self._set_combo_selection(
             self.node_selection_combo,
-            self.simulation_config.get("node_selection_strategy", "FirstFitNodeSelection"),
+            self.simulation_config.get("node_selection_strategy", "NaiveFirstFit"),
         )
         self.node_selection_combo.currentTextChanged.connect(self._save_node_selection_strategy)
         self.node_selection_combo.currentTextChanged.connect(self._refresh_fixed_output_directories)

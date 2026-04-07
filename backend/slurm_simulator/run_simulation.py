@@ -4,10 +4,6 @@ from .slurm_simulator import (
     DefaultResourceDistribution,
     CopyRealNodeSelection,
     NaiveFirstFit,
-    BestFitByFreeCPUsNodeSelection,
-    BestFitByFreeGPUsNodeSelection,
-    JointCpuGpuBestFitNodeSelection,
-    DominantResourcePackingNodeSelection,
     ActiveOnlyPowerModel,
     LinearWithIdlePowerModel,
     LinearWithSleepPowerModel,
@@ -33,16 +29,8 @@ def get_strategy_instance(strategy_name, strategy_type):
     if strategy_type == "node_selection_strategy":
         if strategy_name == "CopyRealNodeSelection":
             return CopyRealNodeSelection()
-        elif strategy_name == "FirstFitNodeSelection":
+        elif strategy_name == "NaiveFirstFit":
             return NaiveFirstFit()
-        elif strategy_name == "BestFitByFreeCPUsNodeSelection":
-            return BestFitByFreeCPUsNodeSelection()
-        elif strategy_name == "BestFitByFreeGPUsNodeSelection":
-            return BestFitByFreeGPUsNodeSelection()
-        elif strategy_name == "JointCpuGpuBestFitNodeSelection":
-            return JointCpuGpuBestFitNodeSelection()
-        elif strategy_name == "DominantResourcePackingNodeSelection":
-            return DominantResourcePackingNodeSelection()
         else:
             raise ValueError("Unknown Selection Strategy")
         
