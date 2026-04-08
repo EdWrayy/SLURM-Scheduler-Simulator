@@ -1,10 +1,7 @@
 {
-
   "cpu_idle_fraction": 0.2,
   "gpu_idle_fraction": 0.125,
-
   "cpu_power": {
-
     "epyc_7452": {
       "max_W": 155
     },
@@ -34,7 +31,6 @@
     }
   },
   "gpu_power": {
-
     "a100_80gb": {
       "max_W": 300
     },
@@ -59,10 +55,14 @@
   },
   "ram_power": {
     "ddr4": {
-      "16": { "W_per_dimm": 5.4 }
+      "16": {
+        "W_per_dimm": 5.4
+      }
     },
     "ddr5": {
-      "32": { "W_per_dimm": 12 }
+      "32": {
+        "W_per_dimm": 12
+      }
     }
   }
 }

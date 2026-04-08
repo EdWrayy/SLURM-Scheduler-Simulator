@@ -1,5 +1,6 @@
 from backend.common.models import Job
 import math
+from itertools import combinations
 
 
 class Node:
@@ -153,13 +154,19 @@ class NodeSelectionStrategy:
             return node_list
         return [n for n in node_list if n.node_type in job.allowed_node_types]
 
+    def get_candidate_node_groups(self, job, island_groups):
+        candidate_node_groups = []
+        for allowed_type in job.allowed_node_types:
+            candidate_node_groups.extend(island_groups[allowed_type])
+        return candidate_node_groups
+
 class CopyRealNodeSelection(NodeSelectionStrategy): 
     """ Places jobs exactly where the real logs placed them for benchmarking. """ 
     def __init__(self): 
         self.map_names_to_nodes = {} 
         
     
-    def select_nodes(self, job, node_list): 
+    def select_nodes(self, job, node_list, island_groups):
         if not self.map_names_to_nodes: 
             for node in node_list: 
                 self.map_names_to_nodes[node.name] = node 
@@ -187,9 +194,7 @@ class NaiveFirstFit(NodeSelectionStrategy):
                 "reason": "invalid_nodes_required"
             }
 
-        candidate_node_groups = []
-        for allowed_type in job.allowed_node_types:
-            candidate_node_groups.extend(island_groups[allowed_type])
+        candidate_node_groups = self.get_candidate_node_groups(job, island_groups)
 
         for group in candidate_node_groups:
             eligible = sorted(group, key=lambda nd: nd.list_position)
@@ -199,6 +204,57 @@ class NaiveFirstFit(NodeSelectionStrategy):
                     return window, {"failed": False, "reason": "first_fit"}
 
         return [], self.build_failure_info()
+    
+class LoadSpreading(NodeSelectionStrategy):
+    """
+    Score nodes by free capacity, keep top K, and choose the best feasible subset.
+    """
+    TOP_K_NODES = 16
+
+    def select_nodes(self, job, node_list, island_groups):
+        n = job.nodes_required
+        
+        if n <= 0:
+            return [], {
+                "failed": True,
+                "reason": "invalid_nodes_required"
+            }
+        
+        candidate_node_groups = self.get_candidate_node_groups(job, island_groups)
+        best_subset = None
+        best_score = float("-inf")
+
+        for group in candidate_node_groups:
+            heuristic_scored = self.score_node_group(group)
+            top_nodes = [node for node, _ in heuristic_scored[: self.TOP_K_NODES]]
+
+            if len(top_nodes) < n:
+                continue
+
+            for subset in combinations(top_nodes, n):
+                if not self.nodes_have_capacity(subset, job):
+                    continue
+
+                subset_score = sum(self.score_node(node) for node in subset)
+                if subset_score > best_score:
+                    best_score = subset_score
+                    best_subset = list(subset)
+
+        if best_subset is not None:
+            return best_subset, {"failed": False, "reason": "load_spreading_best_subset"}
+
+        return [], self.build_failure_info()
+    
+    def score_node_group(self, group):
+        nodes_with_scores = [(node, self.score_node(node)) for node in group]
+        return sorted(nodes_with_scores, key=lambda x: x[1], reverse=True)
+
+    def score_node(self, node):
+        cpu_term = ((node.total_CPUs - node.CPUs_in_use) / node.total_CPUs) if node.total_CPUs > 0 else 0.0
+        gpu_term = ((node.total_GPUs - node.GPUs_in_use) / node.total_GPUs) if node.total_GPUs > 0 else 0.0
+        mem_term = ((node.total_memory - node.memory_in_use) / node.total_memory) if node.total_memory > 0 else 0.0
+        return cpu_term + gpu_term + mem_term
+        
 
 
 class ResourceDistributionStrategy():

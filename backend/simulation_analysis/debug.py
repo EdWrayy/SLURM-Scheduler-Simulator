@@ -20,7 +20,7 @@ def inspect_failed_jobs(config=None, config_path=None):
         pandas.DataFrame: filtered dataframe containing failed job-start events.
     """
     config = _load_analysis_config(config=config, config_path=config_path)
-    events_df, _ = load_simulation_output(config)
+    events_df, _, _ = load_simulation_output(config)
 
     required_columns = {"action", "success"}
     missing = required_columns.difference(events_df.columns)

@@ -4,9 +4,9 @@ import pandas as pd
 def workload_breakdown(parquet_path: str) -> None:
     df = pd.read_parquet(parquet_path)
 
-    # Only count each job once via submit events
+    # Only count each job once via start events
     if 'action' in df.columns:
-        jobs = df[df['action'] == 'submit'].copy()
+        jobs = df[df['action'] == 'start'].copy()
         if jobs.empty:
             jobs = df.drop_duplicates(subset=['job_id'])
     else:
@@ -19,7 +19,7 @@ def workload_breakdown(parquet_path: str) -> None:
     print(f"Total jobs:              {total}")
     print(f"Single-node jobs (1):    {single} ({single / total * 100:.1f}%)")
     print(f"Multi-node jobs (2+):    {multi} ({multi / total * 100:.1f}%)")
-    print()
+    print() 
     print("Node count distribution:")
     dist = jobs['nodes_required'].value_counts().sort_index()
     for n_nodes, count in dist.items():

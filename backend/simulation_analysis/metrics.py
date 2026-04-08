@@ -5,11 +5,11 @@ import pandas as pd
 
 
 
-def calculate_all_metrics(events_df, nodes_df, config):
+def calculate_all_metrics(events_df, node_agg, active_agg, config):
     """
     EVENTS TABLE:
 
-    event_index (int64) 
+    event_index (int64)
     time (datetime64[ns])
     action (object)
     job_id (object)
@@ -24,21 +24,23 @@ def calculate_all_metrics(events_df, nodes_df, config):
     job_gpu_seconds (float64)
     job_mem_gb_seconds (float64)
 
-    
-    NODES TABLE:
-    event_index (int64) 
-    node_name (object)
-    CPUs_in_use (int64)
-    GPUs_in_use (int64)
-    memory_in_use (int64)
-    total_CPUs (int64)
-    total_GPUs (int64)
-    total_memory (int64)
-    CPU_utilisation (float64)
-    GPU_utilisation (float64)
-    memory_utilisation (float64)
-    power_consumption (float64)
 
+    NODE_AGG TABLE (pre-aggregated per event_index):
+    event_index (int64)
+    total_cpus (int64)
+    total_gpus (int64)
+    total_mem (int64)
+    cpus_used (int64)
+    gpus_used (int64)
+    mem_used (int64)
+    cluster_power_W (float64)
+    active_nodes (int64)
+
+    ACTIVE_AGG TABLE (pre-aggregated active nodes per event_index):
+    event_index (int64)
+    free_cpus_sum (int64)
+    free_gpus_sum (int64)
+    free_mem_sum (int64)
 
 
     METRICS TO COMPUTE:
@@ -53,58 +55,35 @@ def calculate_all_metrics(events_df, nodes_df, config):
     Mean Active Nodes
     Peak Active Nodes
     Node-Hours Active
-    
+
     CPU Utilisation (mean and p95)
     GPU Utilisation (mean and p95)
     Memory Utilisation (mean and p95)
-    
+
     Mean free CPUs on active nodes
     Mean free GPUs on active nodes
     Mean free memory on active nodes
-    
+
     Power over time
     Active Nodes Over Time
     Dropped Work Composition
 
     snapshots_df - to create graphs of metrics over time
     """
-    
-    nodes_df["is_active"] = nodes_df["power_consumption"] > 0
-
-    # Group together node records with the same event index
-    node_agg = nodes_df.groupby(level=0, sort=True).agg(
-        total_cpus=("total_CPUs", "sum"),
-        total_gpus=("total_GPUs", "sum"),
-        total_mem=("total_memory", "sum"),
-        cpus_used=("CPUs_in_use", "sum"),
-        gpus_used=("GPUs_in_use", "sum"),
-        mem_used=("memory_in_use", "sum"),
-        cluster_power_W=("power_consumption", "sum"),
-        active_nodes=("is_active", "sum"),   # bool sum = count of True
-    )   
-
-    # Make a df purely for active nodes
-    active = nodes_df.loc[nodes_df["power_consumption"] > 0, ["total_CPUs","CPUs_in_use","total_GPUs","GPUs_in_use","total_memory","memory_in_use"]].copy()
-    active["free_cpus"] = active["total_CPUs"] - active["CPUs_in_use"]
-    active["free_gpus"] = active["total_GPUs"] - active["GPUs_in_use"]
-    active["free_mem"]  = active["total_memory"] - active["memory_in_use"]
-
-    # Group together active nodes with the same event index
-    active_agg = active.groupby(level=0, sort=True).agg(
-        free_cpus_sum=("free_cpus", "sum"),
-        free_gpus_sum=("free_gpus", "sum"),
-        free_mem_sum=("free_mem", "sum"),
-        active_nodes_check=("free_cpus", "size"),
-    )
 
     # Join event index to corresponding node records
     df = events_df.join(node_agg, how="inner")
 
     # Add active node columns aswell
-    df = df.join(active_agg[["free_cpus_sum","free_gpus_sum","free_mem_sum"]], how="left")
+    active_cols = ["free_cpus_sum", "free_gpus_sum", "free_mem_sum", "gpu_active_nodes"]
+    present_active_cols = [c for c in active_cols if c in active_agg.columns]
+    df = df.join(active_agg[present_active_cols], how="left")
+    for col in active_cols:
+        if col not in df.columns:
+            df[col] = 0.0
     
     # Fill nan values with 0
-    df[["free_cpus_sum","free_gpus_sum","free_mem_sum"]] = df[["free_cpus_sum","free_gpus_sum","free_mem_sum"]].fillna(0.0)
+    df[active_cols] = df[active_cols].fillna(0.0)
 
     df = df.sort_index()
 
@@ -124,7 +103,11 @@ def calculate_all_metrics(events_df, nodes_df, config):
 
      # Active-node fragmentation: mean free resources per active node (per event)
     df["free_cpus_per_active_node"] = np.where(df["active_nodes"] > 0, df["free_cpus_sum"] / df["active_nodes"], 0.0)
-    df["free_gpus_per_active_node"] = np.where(df["active_nodes"] > 0, df["free_gpus_sum"] / df["active_nodes"], 0.0)
+    df["free_gpus_per_active_node"] = np.where(
+        df["gpu_active_nodes"] > 0,
+        df["free_gpus_sum"] / df["gpu_active_nodes"],
+        0.0,
+    )
     df["free_mem_per_active_node"] = np.where(df["active_nodes"] > 0, df["free_mem_sum"] / df["active_nodes"], 0.0)
 
 

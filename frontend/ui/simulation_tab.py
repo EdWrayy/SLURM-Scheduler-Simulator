@@ -2,6 +2,7 @@ import json
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
+from PySide6.QtCore import QThread, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
@@ -19,7 +20,40 @@ from PySide6.QtWidgets import (
 from backend.common.config import load_config
 from backend.slurm_simulator.run_simulation import run_simulation
 from frontend.ui.settings_store import get_output_root_directory
-from frontend.ui.terminal_panel import TerminalPanel, TerminalStream
+from frontend.ui.terminal_panel import TerminalPanel
+
+
+class SimulationWorker(QThread):
+    output = Signal(str)
+    finished = Signal()
+    error = Signal(str)
+
+    def __init__(self, config):
+        super().__init__()
+        self._config = config
+
+    def run(self):
+        stream = _WorkerStream(self.output)
+        try:
+            with redirect_stdout(stream), redirect_stderr(stream):
+                run_simulation(self._config)
+        except Exception as exc:
+            self.error.emit(str(exc))
+        finally:
+            self.finished.emit()
+
+
+class _WorkerStream:
+    def __init__(self, signal):
+        self._signal = signal
+
+    def write(self, text):
+        if text:
+            self._signal.emit(text)
+        return len(text) if text else 0
+
+    def flush(self):
+        pass
 
 
 class SimulationTab(QWidget):
@@ -36,8 +70,19 @@ class SimulationTab(QWidget):
         title = QLabel("Simulation Configuration")
         layout.addWidget(title)
 
-        files_group = QGroupBox("Input JSON Files")
+        files_group = QGroupBox("Input Files")
         files_layout = QFormLayout()
+
+        self.events_parquet_path = QLineEdit(
+            self.simulation_config.get("input_events", "")
+        )
+        self.events_parquet_browse = QPushButton("Browse...")
+        self.events_parquet_browse.clicked.connect(self._browse_events_parquet)
+        self.events_parquet_path.editingFinished.connect(self._apply_events_parquet_from_textbox)
+        events_parquet_row = QHBoxLayout()
+        events_parquet_row.addWidget(self.events_parquet_path)
+        events_parquet_row.addWidget(self.events_parquet_browse)
+        files_layout.addRow("Input Events Parquet:", events_parquet_row)
 
         self.nodes_json_path = QLineEdit(
             self.simulation_config.get("ui_nodes_json_source", str(self.nodes_json_target))
@@ -141,6 +186,23 @@ class SimulationTab(QWidget):
         self.setLayout(layout)
         self._refresh_fixed_output_directories()
 
+    def _browse_events_parquet(self) -> None:
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Input Events Parquet",
+            self.events_parquet_path.text(),
+            "Parquet Files (*.parquet);;All Files (*)",
+        )
+        if not file_path:
+            return
+        self.events_parquet_path.setText(file_path)
+        self._set_config_value("input_events", file_path)
+
+    def _apply_events_parquet_from_textbox(self) -> None:
+        selected = self.events_parquet_path.text().strip()
+        if selected:
+            self._set_config_value("input_events", selected)
+
     def _browse_nodes_json(self) -> None:
         file_path, _ = QFileDialog.getOpenFileName(
             self,
@@ -202,22 +264,26 @@ class SimulationTab(QWidget):
         self._save_power_model(self.power_model_combo.currentText())
 
         self.run_simulation_button.setEnabled(False)
-        terminal_stream = TerminalStream(self.terminal_panel)
         self.terminal_panel.append_text("\n[simulation] Starting run...\n")
 
-        try:
-            config = load_config(self.simulator_config_path)
-            with redirect_stdout(terminal_stream), redirect_stderr(terminal_stream):
-                run_simulation(config)
-        except Exception as exc:
-            self.terminal_panel.append_text(f"\n[simulation] Failed: {exc}\n")
-            QMessageBox.critical(self, "Simulation Failed", str(exc))
-            self.run_simulation_button.setEnabled(True)
-            return
+        config = load_config(self.simulator_config_path)
+        self._worker = SimulationWorker(config)
+        self._simulation_failed = False
+        self._worker.output.connect(self.terminal_panel.append_text)
+        self._worker.error.connect(self._on_simulation_error)
+        self._worker.finished.connect(self._on_simulation_finished)
+        self._worker.start()
 
-        self.terminal_panel.append_text("\n[simulation] Completed successfully.\n")
-        QMessageBox.information(self, "Simulation Complete", "Simulation finished successfully.")
+    def _on_simulation_error(self, message: str) -> None:
+        self._simulation_failed = True
+        self.terminal_panel.append_text(f"\n[simulation] Failed: {message}\n")
+        QMessageBox.critical(self, "Simulation Failed", message)
+
+    def _on_simulation_finished(self) -> None:
         self.run_simulation_button.setEnabled(True)
+        if not self._simulation_failed:
+            self.terminal_panel.append_text("\n[simulation] Completed successfully.\n")
+            QMessageBox.information(self, "Simulation Complete", "Simulation finished successfully.")
 
     def _apply_selected_json_to_target(
         self, selected_path: str, target_path: Path, ui_source_key: str
@@ -228,7 +294,7 @@ class SimulationTab(QWidget):
             return
 
         try:
-            with source.open("r", encoding="utf-8") as file:
+            with source.open("r", encoding="utf-8-sig") as file:
                 data = json.load(file)
         except (OSError, json.JSONDecodeError) as exc:
             QMessageBox.warning(self, "Invalid JSON", f"Could not read JSON file:\n{source}\n\n{exc}")

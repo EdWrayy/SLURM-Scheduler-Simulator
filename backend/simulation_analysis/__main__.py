@@ -10,11 +10,11 @@ if __name__ == "__main__":
     config = load_config(Path(__file__).with_name("config.json"))
     
     print("Loading simulation output (events + nodes)...")
-    events_df, nodes_df = load_simulation_output(config)
-    print(f"  Loaded {len(events_df)} event(s) and {len(nodes_df)} node(s)")
-    
+    events_df, node_agg, active_agg = load_simulation_output(config)
+    print(f"  Loaded {len(events_df)} event(s) and {len(node_agg)} aggregated node snapshot(s)")
+
     print("Calculating metrics...")
-    snapshots_df, overall_metrics = calculate_all_metrics(events_df, nodes_df, config)
+    snapshots_df, overall_metrics = calculate_all_metrics(events_df, node_agg, active_agg, config)
     print(f"  Calculated {len(snapshots_df)} snapshot(s)")
 
     print("Making plots...")

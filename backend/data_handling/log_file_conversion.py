@@ -278,9 +278,6 @@ def read_slurm_logs(input_directory):
 
     combined_df = pd.concat(dfs, ignore_index=True)
 
-    # Convert JobID to integer after all filtering is complete
-    combined_df['JobID'] = combined_df['JobID'].astype(int)
-
     return combined_df
 
 

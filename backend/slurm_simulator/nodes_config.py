@@ -38,7 +38,7 @@ def _validate_nodes(nodes, source):
             )
 def load_nodes_config(path):
     config_path = Path(path)
-    with config_path.open("r", encoding="utf-8") as f:
+    with config_path.open("r", encoding="utf-8-sig") as f:
         data = json.load(f)
     nodes = _extract_nodes(data, config_path)
     _validate_nodes(nodes, config_path)
