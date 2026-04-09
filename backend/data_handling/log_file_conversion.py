@@ -269,6 +269,13 @@ def read_slurm_logs(input_directory):
                         print(f"    JobID: {row['JobID']}, {column}: {row[column]}")
                     df = df[~mask]
 
+        # Drop rows placed on drgn01 (non-standard node, excluded from simulation)
+        mask = df['NodeList'].astype(str).str.contains('drgn01', na=False)
+        dropped_count = mask.sum()
+        if dropped_count > 0:
+            print(f"  Dropped {dropped_count} row(s) from {txt_file.name} due to drgn01 in NodeList")
+        df = df[~mask]
+
         final_row_count = len(df)
         total_dropped = initial_row_count - final_row_count
         if total_dropped > 0:

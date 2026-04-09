@@ -4,6 +4,15 @@ from .slurm_simulator import (
     DefaultResourceDistribution,
     CopyRealNodeSelection,
     NaiveFirstFit,
+    LoadSpreading,
+    CPU_Best_Fit,
+    GPU_Best_Fit,
+    Manhattan_Slack_Best_Fit,
+    Dot_Product_Best_Fit,
+    Dominant_Resource_Best_Fit,
+    Workload_Aware_Weighted_Manhattan_Slack,
+    Workload_Aware_Dot_Product,
+    Workload_Aware_Weighted_Dominant_Resource,
     ActiveOnlyPowerModel,
     LinearWithIdlePowerModel,
     LinearWithSleepPowerModel,
@@ -14,6 +23,7 @@ from backend.common.models import Job, JobEvent
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
+import json
 import pyarrow.parquet as pq
 import pyarrow as pa
 import ast
@@ -25,22 +35,54 @@ BYTES_PER_GIB = 1024 ** 3
 
 
 
+WORKLOAD_AWARE_STRATEGIES = {
+    "Workload_Aware_Weighted_Manhattan_Slack": Workload_Aware_Weighted_Manhattan_Slack,
+    "Workload_Aware_Dot_Product": Workload_Aware_Dot_Product,
+    "Workload_Aware_Weighted_Dominant_Resource": Workload_Aware_Weighted_Dominant_Resource,
+}
+
+
+def _load_family_weights() -> dict:
+    weights_file = Path(__file__).with_name("resource_weights.json")
+    if not weights_file.exists():
+        raise FileNotFoundError(
+            f"resource_weights.json not found at {weights_file}. "
+            "Run the Resource Weights tool in the Data Handling tab first."
+        )
+    with open(weights_file) as f:
+        return json.load(f)
+
+
 def get_strategy_instance(strategy_name, strategy_type):
     if strategy_type == "node_selection_strategy":
         if strategy_name == "CopyRealNodeSelection":
             return CopyRealNodeSelection()
         elif strategy_name == "NaiveFirstFit":
             return NaiveFirstFit()
+        elif strategy_name == "LoadSpreading":
+            return LoadSpreading()
+        elif strategy_name == "CPU_Best_Fit":
+            return CPU_Best_Fit()
+        elif strategy_name == "GPU_Best_Fit":
+            return GPU_Best_Fit()
+        elif strategy_name == "Manhattan_Slack_Best_Fit":
+            return Manhattan_Slack_Best_Fit()
+        elif strategy_name == "Dot_Product_Best_Fit":
+            return Dot_Product_Best_Fit()
+        elif strategy_name == "Dominant_Resource_Best_Fit":
+            return Dominant_Resource_Best_Fit()
+        elif strategy_name in WORKLOAD_AWARE_STRATEGIES:
+            family_weights = _load_family_weights()
+            return WORKLOAD_AWARE_STRATEGIES[strategy_name](family_weights)
         else:
-            raise ValueError("Unknown Selection Strategy")
-        
-    
+            raise ValueError(f"Unknown Selection Strategy: {strategy_name}")
+
     elif strategy_type == "resource_distribution_strategy":
         if strategy_name == "DefaultResourceDistribution":
             return DefaultResourceDistribution()
         else:
-            raise ValueError("Unknown Distribution Strategy")
-    
+            raise ValueError(f"Unknown Distribution Strategy: {strategy_name}")
+
     elif strategy_type == "power_model":
         if strategy_name == "ActiveOnlyPowerModel":
             return ActiveOnlyPowerModel()
@@ -49,10 +91,10 @@ def get_strategy_instance(strategy_name, strategy_type):
         elif strategy_name == "LinearWithSleepPowerModel":
             return LinearWithSleepPowerModel()
         else:
-            raise ValueError("Unknown Power Model")
-    
+            raise ValueError(f"Unknown Power Model: {strategy_name}")
+
     else:
-        raise ValueError("Unknown Strategy Type")
+        raise ValueError(f"Unknown Strategy Type: {strategy_type}")
 
 
 def create_nodes(config, node_configs):
@@ -401,7 +443,6 @@ def run_simulation(config):
     output_events_directory, output_nodes_directory, output_events_filename, output_nodes_filename = setup_output_paths(config)
 
     slurm_sim = SlurmSimulation(
-        nodes,
         island_groups,
         node_selection,
         resource_distribution,

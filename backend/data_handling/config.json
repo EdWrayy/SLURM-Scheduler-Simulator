@@ -4,5 +4,7 @@
   "output_filename": "newest_logs_year",
   "csv_input_file": "",
   "csv_output_file": "",
-  "breakdown_parquet_file": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/Simulation Input Parquet Files/newest_logs_year.parquet"
+  "breakdown_parquet_file": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/Simulation Input Parquet Files/newest_logs_year.parquet",
+  "weights_parquet_file": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/Simulation Input Parquet Files/newest_logs_year.parquet",
+  "weights_output_directory": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/Weights"
 }

@@ -63,6 +63,7 @@ class SimulationTab(QWidget):
         self.simulator_config_path = self.simulator_dir / "config.json"
         self.nodes_json_target = self.simulator_dir / "nodes.json"
         self.power_json_target = self.simulator_dir / "power_constants.json"
+        self.weights_json_target = self.simulator_dir / "resource_weights.json"
         self.simulation_config = self._load_simulation_config()
 
         layout = QVBoxLayout()
@@ -106,6 +107,17 @@ class SimulationTab(QWidget):
         power_row.addWidget(self.power_json_browse)
         files_layout.addRow("Power JSON:", power_row)
 
+        self.weights_json_path = QLineEdit(
+            self.simulation_config.get("ui_weights_json_source", str(self.weights_json_target))
+        )
+        self.weights_json_browse = QPushButton("Browse...")
+        self.weights_json_browse.clicked.connect(self._browse_weights_json)
+        self.weights_json_path.editingFinished.connect(self._apply_weights_json_from_textbox)
+        weights_row = QHBoxLayout()
+        weights_row.addWidget(self.weights_json_path)
+        weights_row.addWidget(self.weights_json_browse)
+        files_layout.addRow("Resource Weights JSON:", weights_row)
+
         files_group.setLayout(files_layout)
         layout.addWidget(files_group)
 
@@ -141,6 +153,15 @@ class SimulationTab(QWidget):
             [
                 "NaiveFirstFit",
                 "CopyRealNodeSelection",
+                "LoadSpreading",
+                "CPU_Best_Fit",
+                "GPU_Best_Fit",
+                "Manhattan_Slack_Best_Fit",
+                "Dot_Product_Best_Fit",
+                "Dominant_Resource_Best_Fit",
+                "Workload_Aware_Weighted_Manhattan_Slack",
+                "Workload_Aware_Dot_Product",
+                "Workload_Aware_Weighted_Dominant_Resource",
             ]
         )
         self._set_combo_selection(
@@ -237,6 +258,23 @@ class SimulationTab(QWidget):
         if selected:
             self._apply_selected_json_to_target(selected, self.power_json_target, "ui_power_json_source")
 
+    def _browse_weights_json(self) -> None:
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Resource Weights JSON",
+            self.weights_json_path.text(),
+            "JSON Files (*.json);;All Files (*)",
+        )
+        if not file_path:
+            return
+        self.weights_json_path.setText(file_path)
+        self._apply_selected_json_to_target(file_path, self.weights_json_target, "ui_weights_json_source")
+
+    def _apply_weights_json_from_textbox(self) -> None:
+        selected = self.weights_json_path.text().strip()
+        if selected:
+            self._apply_selected_json_to_target(selected, self.weights_json_target, "ui_weights_json_source")
+
     def _save_events_output_directory(self) -> None:
         directory = self.events_input_path.text().strip()
         self._set_config_value("output_events_directory", directory)
@@ -259,6 +297,7 @@ class SimulationTab(QWidget):
         self._refresh_fixed_output_directories()
         self._apply_nodes_json_from_textbox()
         self._apply_power_json_from_textbox()
+        self._apply_weights_json_from_textbox()
         self._save_node_selection_strategy(self.node_selection_combo.currentText())
         self._save_resource_distribution_strategy(self.resource_distribution_combo.currentText())
         self._save_power_model(self.power_model_combo.currentText())

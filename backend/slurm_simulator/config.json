@@ -2,13 +2,14 @@
   "input_events": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/Simulation Input Parquet Files/newest_logs_year.parquet",
   "output_events": "entire_history_output_events.parquet",
   "output_nodes": "entire_history_output_nodes.parquet",
-  "output_events_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\root\\simulation\\LinearWithSleepPowerModel\\CopyRealNodeSelection\\events",
-  "output_nodes_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\root\\simulation\\LinearWithSleepPowerModel\\CopyRealNodeSelection\\nodes",
+  "output_events_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\root\\simulation\\LinearWithIdlePowerModel\\CopyRealNodeSelection\\events",
+  "output_nodes_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\root\\simulation\\LinearWithIdlePowerModel\\CopyRealNodeSelection\\nodes",
   "node_selection_strategy": "CopyRealNodeSelection",
   "resource_distribution_strategy": "DefaultResourceDistribution",
-  "power_model": "LinearWithSleepPowerModel",
+  "power_model": "LinearWithIdlePowerModel",
   "power_constants_config": "power_constants.json",
   "nodes_config": "nodes.json",
   "ui_nodes_json_source": "C:\\Users\\edjwr\\Documents\\GitHub\\SLURM-Scheduler-Simulator\\presets\\iridix_x_2025\\nodes.json",
-  "ui_power_json_source": "C:\\Users\\edjwr\\Documents\\GitHub\\SLURM-Scheduler-Simulator\\backend\\slurm_simulator\\power_constants.json"
+  "ui_power_json_source": "C:\\Users\\edjwr\\Documents\\GitHub\\SLURM-Scheduler-Simulator\\backend\\slurm_simulator\\power_constants.json",
+  "ui_weights_json_source": "C:\\Users\\edjwr\\Documents\\GitHub\\SLURM-Scheduler-Simulator\\backend\\slurm_simulator\\resource_weights.json"
 }

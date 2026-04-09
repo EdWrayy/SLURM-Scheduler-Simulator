@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 from backend.common.config import load_config
 from backend.data_handling.convert_to_csv import convert_to_csv
 from backend.data_handling.log_file_conversion import convert_logs
+from backend.data_handling.resource_weights import compute_resource_weights, save_weights
 from backend.data_handling.workload_breakdown import workload_breakdown
 from frontend.ui.terminal_panel import TerminalPanel, TerminalStream
 
@@ -117,6 +118,34 @@ class DataHandlingTab(QWidget):
         self.run_breakdown_button.clicked.connect(self._run_workload_breakdown)
         layout.addWidget(self.run_breakdown_button)
 
+        weights_group = QGroupBox("Resource Weights")
+        weights_layout = QFormLayout()
+
+        self.weights_parquet_file_path = QLineEdit(config["weights_parquet_file"])
+        self.weights_parquet_file_browse = QPushButton("Browse...")
+        self.weights_parquet_file_browse.clicked.connect(self._browse_weights_parquet_file)
+        self.weights_parquet_file_path.editingFinished.connect(self._save_weights_parquet_file)
+        weights_parquet_row = QHBoxLayout()
+        weights_parquet_row.addWidget(self.weights_parquet_file_path)
+        weights_parquet_row.addWidget(self.weights_parquet_file_browse)
+        weights_layout.addRow("Input Parquet File:", weights_parquet_row)
+
+        self.weights_output_directory_path = QLineEdit(config["weights_output_directory"])
+        self.weights_output_directory_browse = QPushButton("Browse...")
+        self.weights_output_directory_browse.clicked.connect(self._browse_weights_output_directory)
+        self.weights_output_directory_path.editingFinished.connect(self._save_weights_output_directory)
+        weights_output_row = QHBoxLayout()
+        weights_output_row.addWidget(self.weights_output_directory_path)
+        weights_output_row.addWidget(self.weights_output_directory_browse)
+        weights_layout.addRow("Output Folder:", weights_output_row)
+
+        weights_group.setLayout(weights_layout)
+        layout.addWidget(weights_group)
+
+        self.run_weights_button = QPushButton("Compute Resource Weights")
+        self.run_weights_button.clicked.connect(self._run_resource_weights)
+        layout.addWidget(self.run_weights_button)
+
         self.terminal_panel = TerminalPanel("Data Handling Terminal")
         layout.addWidget(self.terminal_panel)
         self.setLayout(layout)
@@ -130,6 +159,8 @@ class DataHandlingTab(QWidget):
             "csv_input_file": "",
             "csv_output_file": "",
             "breakdown_parquet_file": "",
+            "weights_parquet_file": "",
+            "weights_output_directory": "",
         }
 
         try:
@@ -142,6 +173,8 @@ class DataHandlingTab(QWidget):
                 "csv_input_file": str(config.get("csv_input_file", "")),
                 "csv_output_file": str(config.get("csv_output_file", "")),
                 "breakdown_parquet_file": str(config.get("breakdown_parquet_file", "")),
+                "weights_parquet_file": str(config.get("weights_parquet_file", "")),
+                "weights_output_directory": str(config.get("weights_output_directory", "")),
             }
         except (OSError, json.JSONDecodeError):
             return default_config
@@ -293,6 +326,68 @@ class DataHandlingTab(QWidget):
 
         self.terminal_panel.append_text("\n[data-handling] Workload breakdown complete.\n")
         self.run_breakdown_button.setEnabled(True)
+
+    def _browse_weights_parquet_file(self) -> None:
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Input Parquet File",
+            "",
+            "Parquet Files (*.parquet);;All Files (*)",
+        )
+        if file_path:
+            self.weights_parquet_file_path.setText(file_path)
+            self._save_weights_parquet_file()
+
+    def _browse_weights_output_directory(self) -> None:
+        folder = QFileDialog.getExistingDirectory(self, "Select Output Folder")
+        if folder:
+            self.weights_output_directory_path.setText(folder)
+            self._save_weights_output_directory()
+
+    def _save_weights_parquet_file(self) -> None:
+        self._set_config_value("weights_parquet_file", self.weights_parquet_file_path.text().strip())
+
+    def _save_weights_output_directory(self) -> None:
+        self._set_config_value("weights_output_directory", self.weights_output_directory_path.text().strip())
+
+    def _run_resource_weights(self) -> None:
+        self._save_weights_parquet_file()
+        self._save_weights_output_directory()
+
+        parquet_file = self.weights_parquet_file_path.text().strip()
+        output_dir = self.weights_output_directory_path.text().strip()
+        if not parquet_file or not output_dir:
+            QMessageBox.warning(
+                self, "Missing Fields", "Please provide both an input parquet file and an output folder."
+            )
+            return
+
+        config = self._load_conversion_config()
+        nodes_config_path = config.get("nodes_config_file", "")
+        if not nodes_config_path:
+            nodes_config_path = str(
+                Path(__file__).resolve().parents[2] / "backend" / "slurm_simulator" / "nodes.json"
+            )
+
+        output_file = str(Path(output_dir) / "resource_weights.json")
+
+        self.run_weights_button.setEnabled(False)
+        terminal_stream = TerminalStream(self.terminal_panel)
+        self.terminal_panel.append_text("\n[data-handling] Computing resource weights...\n")
+
+        try:
+            with redirect_stdout(terminal_stream), redirect_stderr(terminal_stream):
+                weights = compute_resource_weights(parquet_file, nodes_config_path)
+                save_weights(weights, output_file)
+        except Exception as exc:
+            self.terminal_panel.append_text(f"\n[data-handling] Resource weights failed: {exc}\n")
+            QMessageBox.critical(self, "Resource Weights Failed", str(exc))
+            self.run_weights_button.setEnabled(True)
+            return
+
+        self.terminal_panel.append_text("\n[data-handling] Resource weights computed successfully.\n")
+        QMessageBox.information(self, "Resource Weights Complete", f"Weights saved to:\n{output_file}")
+        self.run_weights_button.setEnabled(True)
 
     def _set_config_value(self, key: str, value: str) -> None:
         config = self._load_conversion_config()
