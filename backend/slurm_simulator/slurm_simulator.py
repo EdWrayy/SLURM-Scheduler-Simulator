@@ -131,18 +131,7 @@ class NodeSelectionStrategy:
 
     def _get_weights(self, node) -> tuple[float, float, float]:
         return self.family_weights.get(node.node_type, self.DEFAULT_WEIGHTS)
-
-    def select_nodes(self, job, island_groups):
-        """
-        Returns: (selected_nodes, failure_info)
-          - selected_nodes: list[Node] (empty if failure)
-          - failure_info: dict with keys:
-              {
-                "failed": bool,
-                "reason": str
-              }
-        """
-        raise NotImplementedError
+    
 
     def get_free_capacities(self, node):
         return (

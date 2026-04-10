@@ -1,7 +1,7 @@
 {
-  "input_events_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\root\\simulation\\LinearWithSleepPowerModel\\CopyRealNodeSelection\\events",
-  "input_nodes_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\root\\simulation\\LinearWithSleepPowerModel\\CopyRealNodeSelection\\nodes",
-  "output_report_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\root\\simulation_analysis\\CopyRealNodeSelection",
-  "baseline_total_energy_kwh": 4079354.072,
-  "ui_output_name": "CopyRealNodeSelection"
+  "input_events_directory": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/root/simulation/LinearWithIdlePowerModel/CopyRealNodeSelection/events",
+  "input_nodes_directory": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/root/simulation/LinearWithIdlePowerModel/CopyRealNodeSelection/nodes",
+  "output_report_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\root\\simulation_analysis\\CopyRealNodeSelectionNoSleep",
+  "baseline_total_energy_kwh": 505321.783,
+  "ui_output_name": "CopyRealNodeSelectionNoSleep"
 }
