@@ -112,7 +112,9 @@ class LinearWithSleepPowerModel(NodePowerModel):
 
 class NodeSelectionStrategy:
     """Base class for node selection strategies when placing jobs"""
-    TOP_K_NODES = 16
+
+    EXHAUSTIVE_THRESHOLD = 1000
+    BEAM_WIDTH = 20
 
     DEFAULT_WEIGHTS = (1.0, 1.0, 1.0)
 
@@ -121,7 +123,7 @@ class NodeSelectionStrategy:
         family_weights: optional per-node-type resource weights.
         Strategies that do not use weights can omit this argument.
         """
-        
+
         self.family_weights: dict[str, tuple[float, float, float]] = {}
         for node_type, w in (family_weights or {}).items():
             if isinstance(w, dict):
@@ -129,9 +131,10 @@ class NodeSelectionStrategy:
             else:
                 self.family_weights[node_type] = tuple(w)
 
+    
     def _get_weights(self, node) -> tuple[float, float, float]:
         return self.family_weights.get(node.node_type, self.DEFAULT_WEIGHTS)
-    
+
 
     def get_free_capacities(self, node):
         return (
@@ -140,6 +143,7 @@ class NodeSelectionStrategy:
             node.total_memory - node.memory_in_use,
         )
 
+    
     def nodes_have_capacity(self, nodes, job):
         total_c = sum(self.get_free_capacities(nd)[0] for nd in nodes)
         total_g = sum(self.get_free_capacities(nd)[1] for nd in nodes)
@@ -151,10 +155,16 @@ class NodeSelectionStrategy:
             total_m >= job.memory_required
         )
 
-    def build_failure_info(self):
+    
+    def build_failure_info(self, used_beam=False):
+        reason = (
+            "beam_search_did_not_find_feasible_set"
+            if used_beam
+            else "exhaustive_search_did_not_find_feasible_set"
+        )
         return {
             "failed": True,
-            "reason": "no_sufficient_node_set_found",
+            "reason": reason,
         }
 
 
@@ -164,38 +174,72 @@ class NodeSelectionStrategy:
             candidate_node_groups.extend(island_groups[allowed_type])
         return candidate_node_groups
 
+    
     def score_node(self, node, job):
         raise NotImplementedError
 
+    
     def select_nodes(self, job, island_groups):
         if job.nodes_required <= 0:
             return [], {"failed": True, "reason": "invalid_nodes_required"}
-        best_subset = self.select_best_scored_subset(job, island_groups)
+        best_subset, used_beam = self.select_best_scored_subset(job, island_groups)
         if best_subset is not None:
             return best_subset, {"failed": False, "reason": "scored_best_subset"}
-        return [], self.build_failure_info()
+        return [], self.build_failure_info(used_beam)
 
+    
     def select_best_scored_subset(self, job, island_groups):
         n = job.nodes_required
         candidate_node_groups = self.get_candidate_node_groups(job, island_groups)
         best_subset = None
         best_score = float("-inf")
+        beam_search_performed = False
 
         for group in candidate_node_groups:
-            top_nodes = sorted(group, key=lambda nd: self.score_node(nd, job), reverse=True)[:self.TOP_K_NODES]
-
-            if len(top_nodes) < n:
+            if len(group) < n:
                 continue
 
-            for subset in combinations(top_nodes, n):
-                if not self.nodes_have_capacity(subset, job):
-                    continue
-                subset_score = sum(self.score_node(nd, job) for nd in subset)
-                if subset_score > best_score:
-                    best_score = subset_score
-                    best_subset = list(subset)
+            if math.comb(len(group), n) < self.EXHAUSTIVE_THRESHOLD:
+                for subset in combinations(group, n):
+                    if not self.nodes_have_capacity(subset, job):
+                        continue
+                    subset_score = sum(self.score_node(nd, job) for nd in subset)
+                    if subset_score > best_score:
+                        best_score = subset_score
+                        best_subset = list(subset)
+            else:
+                beam_search_performed = True
+                current_beam = [frozenset()]
 
-        return best_subset
+                for _ in range(n):
+                    candidates_map = {}
+                    for partial in current_beam:
+                        for node in group:
+                            if node in partial:
+                                continue
+                            new_partial = partial | frozenset([node])
+                            score = sum(self.score_node(nd, job) for nd in new_partial)
+                            if new_partial not in candidates_map or score > candidates_map[new_partial]:
+                                candidates_map[new_partial] = score
+
+                    if not candidates_map:
+                        break
+
+                    sorted_candidates = sorted(candidates_map.items(), key=lambda x: x[1], reverse=True)
+                    current_beam = [s for s, _ in sorted_candidates[:self.BEAM_WIDTH]]
+
+                for partial in current_beam:
+                    if len(partial) < n:
+                        continue
+                    nodes_list = list(partial)
+                    if not self.nodes_have_capacity(nodes_list, job):
+                        continue
+                    subset_score = sum(self.score_node(nd, job) for nd in nodes_list)
+                    if subset_score > best_score:
+                        best_score = subset_score
+                        best_subset = nodes_list
+
+        return best_subset, beam_search_performed
 
 class CopyRealNodeSelection(NodeSelectionStrategy): 
     """ Places jobs exactly where the real logs placed them for benchmarking. """ 
@@ -222,29 +266,12 @@ class CopyRealNodeSelection(NodeSelectionStrategy):
 
 class NaiveFirstFit(NodeSelectionStrategy):
     """
-    Slide a window of n nodes and return the first set of n nodes found which meets criteria
-    This will not find non-contigous subsets 
+    Picks the first feasible nodes found
+    Scoring heuristic returns the same value for all nodes - no preference over any two sets which both meet the required criteria.
     """
 
-    def select_nodes(self, job, island_groups):
-        n = job.nodes_required
-
-        if n <= 0:
-            return [], {
-                "failed": True,
-                "reason": "invalid_nodes_required"
-            }
-
-        candidate_node_groups = self.get_candidate_node_groups(job, island_groups)
-
-        for group in candidate_node_groups:
-            eligible = sorted(group, key=lambda nd: nd.list_position)
-            for start in range(len(eligible) - n + 1):
-                window = eligible[start:start + n]
-                if self.nodes_have_capacity(window, job):
-                    return window, {"failed": False, "reason": "first_fit"}
-
-        return [], self.build_failure_info()
+    def score_node(self, node, job):
+        return 0
     
 class LoadSpreading(NodeSelectionStrategy):
     """
@@ -473,7 +500,7 @@ class DefaultResourceDistribution(ResourceDistributionStrategy):
     """
     def allocate_resources(self, job, nodes):
         sorted_nodes = sorted(nodes, key=lambda node: (node.list_position, node.id))
-        
+
         CPUs_required = job.CPUs_required
         GPUs_required = job.GPUs_required
         memory_required = job.memory_required
@@ -484,9 +511,10 @@ class DefaultResourceDistribution(ResourceDistributionStrategy):
             CPU_allocation = 0
             GPU_allocation = 0
             memory_allocation = 0
+
             if CPUs_required == 0 and GPUs_required == 0 and memory_required == 0:
                 break
-            
+
             if CPUs_required > 0:
                 free_CPUs = node.total_CPUs - node.CPUs_in_use
                 CPU_allocation = min(CPUs_required, free_CPUs)
@@ -502,8 +530,16 @@ class DefaultResourceDistribution(ResourceDistributionStrategy):
                 memory_allocation = min(memory_required, free_memory)
                 memory_required -= memory_allocation
 
-            resource_distribution_record[node] = CPU_allocation, GPU_allocation, memory_allocation
+            resource_distribution_record[node] = (CPU_allocation, GPU_allocation, memory_allocation)
             node.run_job(CPU_allocation, GPU_allocation, memory_allocation)
+
+        if CPUs_required != 0 or GPUs_required != 0 or memory_required != 0:
+            for node, (cpus, gpus, mem) in resource_distribution_record.items():
+                node.release_job(cpus, gpus, mem)
+            raise ValueError(
+                f"Incomplete allocation for job {job.id}: "
+                f"remaining CPUs={CPUs_required}, GPUs={GPUs_required}, memory={memory_required}"
+            )
 
         return resource_distribution_record
 
@@ -522,6 +558,8 @@ class SlurmSimulation:
         self.job_tracker = {}
 
     def place_job(self, job):
+        selected_nodes = []
+        info = {}
         try:
             selected_nodes, info = self.node_selection_strategy.select_nodes(job, self.island_groups)
 
@@ -533,10 +571,10 @@ class SlurmSimulation:
 
             return True, info
 
-        except Exception as e:
+        except ValueError:
             return False, {
                 "failed": True,
-                "reason": f"{type(e).__name__}: {e}",
+                "reason": "resource_distribution_failed",
             }
 
 

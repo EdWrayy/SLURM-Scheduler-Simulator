@@ -11,6 +11,7 @@ PATH_KEYS = {
     "input_nodes_directory",
     "output_events_directory",
     "output_nodes_directory",
+    "output_debug_directory",
 }
 
 

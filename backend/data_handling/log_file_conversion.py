@@ -8,6 +8,8 @@ from backend.common.config import load_config
 """
 Swarml4 [04-09] nodes changed names to ecsai [01-06] midway through the logs.
 We therefore rename them from the start for the sake of consistency
+Also rename Swarml4 [01-03] to ecsai [07-09], as they are the same hardware, network island, so can be treated as the same node family. 
+Removing the two different names
 """
 NODE_RENAME = {
     "swarml401": "ecsai07",
@@ -175,6 +177,11 @@ def load_job_events(df):
 
     df["Start"] = pd.to_datetime(df["Start"], errors="coerce")
     df["End"] = pd.to_datetime(df["End"], errors="coerce")
+    zero_duration_mask = df["Start"] == df["End"]
+    zero_duration_count = int(zero_duration_mask.sum())
+    if zero_duration_count > 0:
+        df = df[~zero_duration_mask].copy()
+        print(f"Dropped {zero_duration_count} zero-duration job row(s) where Start == End")
 
     events = []
 
@@ -213,7 +220,8 @@ def load_job_events(df):
         events.append(JobEvent(job=job, action="start", time=start_time))
         events.append(JobEvent(job=job, action="finish", time=end_time))
 
-    events.sort(key=lambda ev: ev.time)
+    # For same timestamp, process releases before starts.
+    events.sort(key=lambda ev: (ev.time, 0 if ev.action == "finish" else 1))
     return events
 
 
@@ -334,9 +342,9 @@ def convert_logs(config):
 
     print(f"\nEvents shape before deduplication: {events_df.shape}")
 
-    # Remove duplicate events (same job_id and action)
+    # Remove only exact duplicate event rows across all fields.
     initial_count = len(events_df)
-    events_df = events_df.drop_duplicates(subset=['job_id', 'action'], keep='first')
+    events_df = events_df.drop_duplicates(keep='first')
     duplicates_removed = initial_count - len(events_df)
 
     print(f"Removed {duplicates_removed} duplicate events")

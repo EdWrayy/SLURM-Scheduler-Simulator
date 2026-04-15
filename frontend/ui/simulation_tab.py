@@ -4,6 +4,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QThread, Signal
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QFileDialog,
     QFormLayout,
@@ -142,6 +143,15 @@ class SimulationTab(QWidget):
         nodes_row.addWidget(self.nodes_input_browse)
         input_layout.addRow("Output Nodes Folder:", nodes_row)
 
+        self.debug_input_path = QLineEdit(self.simulation_config.get("output_debug_directory", ""))
+        self.debug_input_path.setReadOnly(True)
+        self.debug_input_browse = QPushButton("Browse...")
+        self.debug_input_browse.setEnabled(False)
+        debug_row = QHBoxLayout()
+        debug_row.addWidget(self.debug_input_path)
+        debug_row.addWidget(self.debug_input_browse)
+        input_layout.addRow("Output Debug Folder:", debug_row)
+
         input_group.setLayout(input_layout)
         layout.addWidget(input_group)
 
@@ -194,6 +204,11 @@ class SimulationTab(QWidget):
         self.power_model_combo.currentTextChanged.connect(self._save_power_model)
         self.power_model_combo.currentTextChanged.connect(self._refresh_fixed_output_directories)
         config_layout.addRow("Power Model:", self.power_model_combo)
+
+        self.debug_output_checkbox = QCheckBox("Write failed-placement debug files")
+        self.debug_output_checkbox.setChecked(self._config_bool("enable_debug_output", True))
+        self.debug_output_checkbox.toggled.connect(self._save_enable_debug_output)
+        config_layout.addRow("Enable Debug Output:", self.debug_output_checkbox)
 
         config_group.setLayout(config_layout)
         layout.addWidget(config_group)
@@ -283,6 +298,10 @@ class SimulationTab(QWidget):
         directory = self.nodes_input_path.text().strip()
         self._set_config_value("output_nodes_directory", directory)
 
+    def _save_debug_output_directory(self) -> None:
+        directory = self.debug_input_path.text().strip()
+        self._set_config_value("output_debug_directory", directory)
+
     def _save_node_selection_strategy(self, value: str) -> None:
         self._set_config_value("node_selection_strategy", value)
 
@@ -291,6 +310,9 @@ class SimulationTab(QWidget):
 
     def _save_power_model(self, value: str) -> None:
         self._set_config_value("power_model", value)
+
+    def _save_enable_debug_output(self, enabled: bool) -> None:
+        self._set_config_value("enable_debug_output", bool(enabled))
 
     def _run_simulation(self) -> None:
         # Ensure manual path edits are persisted before running.
@@ -301,6 +323,7 @@ class SimulationTab(QWidget):
         self._save_node_selection_strategy(self.node_selection_combo.currentText())
         self._save_resource_distribution_strategy(self.resource_distribution_combo.currentText())
         self._save_power_model(self.power_model_combo.currentText())
+        self._save_enable_debug_output(self.debug_output_checkbox.isChecked())
 
         self.run_simulation_button.setEnabled(False)
         self.terminal_panel.append_text("\n[simulation] Starting run...\n")
@@ -371,9 +394,17 @@ class SimulationTab(QWidget):
             pass
         return {}
 
-    def _set_config_value(self, key: str, value: str) -> None:
+    def _set_config_value(self, key: str, value) -> None:
         self.simulation_config[key] = value
         self._save_simulation_config()
+
+    def _config_bool(self, key: str, default: bool) -> bool:
+        value = self.simulation_config.get(key, default)
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return bool(value)
 
     def _save_simulation_config(self) -> None:
         with self.simulator_config_path.open("w", encoding="utf-8") as file:
@@ -395,8 +426,11 @@ class SimulationTab(QWidget):
         base = Path(root) / "simulation" / power_model / node_strategy
         events_dir = str(base / "events")
         nodes_dir = str(base / "nodes")
+        debug_dir = str(base / "debug")
 
         self.events_input_path.setText(events_dir)
         self.nodes_input_path.setText(nodes_dir)
+        self.debug_input_path.setText(debug_dir)
         self._save_events_output_directory()
         self._save_nodes_output_directory()
+        self._save_debug_output_directory()

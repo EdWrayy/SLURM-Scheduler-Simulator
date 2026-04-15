@@ -111,6 +111,7 @@ class GeneralSettingsTab(QWidget):
         sim_base = root / "simulation" / power_model / node_selection
         sim_config["output_events_directory"] = str(sim_base / "events")
         sim_config["output_nodes_directory"] = str(sim_base / "nodes")
+        sim_config["output_debug_directory"] = str(sim_base / "debug")
         self._save_json_config(self.sim_config_path, sim_config)
 
         sim_analysis_config = self._load_json_config(self.sim_analysis_config_path)
