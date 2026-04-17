@@ -1,8 +1,9 @@
 {
-  "input_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\Meta Analysis Results\\Sleep Power Model\\Inputs",
-  "output_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\root\\meta_analysis\\Meta_Analysis_Results_Sleep_Power_Model",
+  "input_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\Meta Analysis Input\\Main",
+  "output_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\root\\meta_analysis\\Main",
   "include_keys": "energy_saving_pct, dropped_work_pct, total_energy_kwh, average_power_kw, cpu_util_mean, gpu_util_mean",
   "higher_is_better": "energy_saving_pct, cpu_util_mean, gpu_util_mean",
   "pareto_x": "dropped_work_pct",
-  "pareto_y": "energy_saving_pct"
+  "pareto_y": "energy_saving_pct",
+  "ui_output_name": "Main"
 }

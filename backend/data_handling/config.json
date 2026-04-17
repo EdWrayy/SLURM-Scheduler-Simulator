@@ -1,10 +1,10 @@
 {
-  "input_directory": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/April-April-Logs",
+  "input_directory": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/2025-first-3-months",
   "output_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\Simulation Input Parquet Files",
-  "output_filename": "newest_logs_year",
+  "output_filename": "2025-first-3-months",
   "csv_input_file": "",
   "csv_output_file": "",
-  "breakdown_parquet_file": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/Simulation Input Parquet Files/newest_logs_year.parquet",
+  "breakdown_parquet_file": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/Simulation Input Parquet Files/2025-first-3-months.parquet",
   "weights_parquet_file": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/Simulation Input Parquet Files/newest_logs_year.parquet",
-  "weights_output_directory": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/Weights"
+  "weights_output_directory": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/Weights/April-April"
 }

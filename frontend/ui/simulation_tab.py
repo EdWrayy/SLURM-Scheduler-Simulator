@@ -183,10 +183,10 @@ class SimulationTab(QWidget):
         config_layout.addRow("Node Selection Strategy:", self.node_selection_combo)
 
         self.resource_distribution_combo = QComboBox()
-        self.resource_distribution_combo.addItems(["DefaultResourceDistribution"])
+        self.resource_distribution_combo.addItems(["GreedyBlockFill", "EvenSplit"])
         self._set_combo_selection(
             self.resource_distribution_combo,
-            self.simulation_config.get("resource_distribution_strategy", "DefaultResourceDistribution"),
+            self.simulation_config.get("resource_distribution_strategy", "GreedyBlockFill"),
         )
         self.resource_distribution_combo.currentTextChanged.connect(
             self._save_resource_distribution_strategy

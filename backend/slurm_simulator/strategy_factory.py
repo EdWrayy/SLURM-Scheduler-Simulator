@@ -2,7 +2,8 @@ from pathlib import Path
 import json
 
 from .slurm_simulator import (
-    DefaultResourceDistribution,
+    GreedyBlockFill,
+    EvenSplit,
     CopyRealNodeSelection,
     NaiveFirstFit,
     LoadSpreading,
@@ -63,8 +64,10 @@ def get_strategy_instance(strategy_name, strategy_type):
             raise ValueError(f"Unknown Selection Strategy: {strategy_name}")
 
     elif strategy_type == "resource_distribution_strategy":
-        if strategy_name == "DefaultResourceDistribution":
-            return DefaultResourceDistribution()
+        if strategy_name == "GreedyBlockFill":
+            return GreedyBlockFill()
+        elif strategy_name == "EvenSplit":
+            return EvenSplit()
         else:
             raise ValueError(f"Unknown Distribution Strategy: {strategy_name}")
 
