@@ -107,7 +107,7 @@ class GeneralSettingsTab(QWidget):
 
         sim_config = self._load_json_config(self.sim_config_path)
         power_model = str(sim_config.get("power_model", "LinearWithSleepPowerModel"))
-        node_selection = str(sim_config.get("node_selection_strategy", "NaiveFirstFit"))
+        node_selection = str(sim_config.get("node_selection_strategy", "NaiveFeasible"))
         sim_base = root / "simulation" / power_model / node_selection
         sim_config["output_events_directory"] = str(sim_base / "events")
         sim_config["output_nodes_directory"] = str(sim_base / "nodes")

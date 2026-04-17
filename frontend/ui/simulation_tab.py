@@ -161,7 +161,7 @@ class SimulationTab(QWidget):
         self.node_selection_combo = QComboBox()
         self.node_selection_combo.addItems(
             [
-                "NaiveFirstFit",
+                "NaiveFeasible",
                 "CopyRealNodeSelection",
                 "LoadSpreading",
                 "CPU_Best_Fit",
@@ -176,7 +176,7 @@ class SimulationTab(QWidget):
         )
         self._set_combo_selection(
             self.node_selection_combo,
-            self.simulation_config.get("node_selection_strategy", "NaiveFirstFit"),
+            self.simulation_config.get("node_selection_strategy", "NaiveFeasible"),
         )
         self.node_selection_combo.currentTextChanged.connect(self._save_node_selection_strategy)
         self.node_selection_combo.currentTextChanged.connect(self._refresh_fixed_output_directories)

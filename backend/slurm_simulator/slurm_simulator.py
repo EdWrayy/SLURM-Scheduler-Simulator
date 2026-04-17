@@ -33,11 +33,17 @@ class Node:
 
 
     def run_job(self, CPUs_required, GPUs_required, memory_required):
+        if self.CPUs_in_use + CPUs_required > self.total_CPUs:
+            raise ValueError(f"CPU overallocation on {self.name}")
+        if self.GPUs_in_use + GPUs_required > self.total_GPUs:
+            raise ValueError(f"GPU overallocation on {self.name}")
+        if self.memory_in_use + memory_required > self.total_memory:
+            raise ValueError(f"Memory overallocation on {self.name}")
+
         self.CPUs_in_use += CPUs_required
         self.GPUs_in_use += GPUs_required
         self.memory_in_use += memory_required
         self._refresh_power()
-        
 
 
     def release_job(self, CPUs_required, GPUs_required, memory_required):
@@ -113,9 +119,6 @@ class LinearWithSleepPowerModel(NodePowerModel):
 class NodeSelectionStrategy:
     """Base class for node selection strategies when placing jobs"""
 
-    EXHAUSTIVE_THRESHOLD = 1000
-    BEAM_WIDTH = 20
-
     DEFAULT_WEIGHTS = (1.0, 1.0, 1.0)
 
     def __init__(self, family_weights: dict | None = None):
@@ -157,15 +160,10 @@ class NodeSelectionStrategy:
         )
 
     
-    def build_failure_info(self, used_beam=False):
-        reason = (
-            "beam_search_did_not_find_feasible_set"
-            if used_beam
-            else "exhaustive_search_did_not_find_feasible_set"
-        )
+    def build_failure_info(self):
         return {
             "failed": True,
-            "reason": reason,
+            "reason": "exhaustive_search_did_not_find_feasible_set",
         }
 
 
@@ -181,72 +179,53 @@ class NodeSelectionStrategy:
 
     def _evaluate_subset(self, nodes, job) -> float:
         record = self.resource_distribution_strategy.allocate_resources(job, nodes)
-        score = self.score_subset(nodes, job)
-        for node, (cpus, gpus, mem) in record.items():
-            node.release_job(cpus, gpus, mem)
-        return score
+        try:
+            return self.score_subset(nodes, job)
+        finally:
+            for node, (cpus, gpus, mem) in record.items():
+                node.release_job(cpus, gpus, mem)
 
     def select_nodes(self, job, island_groups):
         if job.nodes_required <= 0:
             return [], {"failed": True, "reason": "invalid_nodes_required"}
-        best_subset, used_beam = self.select_best_scored_subset(job, island_groups)
+        best_subset = self.select_best_scored_subset(job, island_groups)
         if best_subset is not None:
             return best_subset, {"failed": False, "reason": "scored_best_subset"}
-        return [], self.build_failure_info(used_beam)
+        return [], self.build_failure_info()
 
-    
     def select_best_scored_subset(self, job, island_groups):
         n = job.nodes_required
         candidate_node_groups = self.get_candidate_node_groups(job, island_groups)
         best_subset = None
         best_score = float("-inf")
-        beam_search_performed = False
 
         for group in candidate_node_groups:
             if len(group) < n:
                 continue
 
-            if math.comb(len(group), n) < self.EXHAUSTIVE_THRESHOLD:
-                for subset in combinations(group, n):
-                    if not self.nodes_have_capacity(subset, job):
-                        continue
-                    subset_score = self._evaluate_subset(list(subset), job)
-                    if subset_score > best_score:
-                        best_score = subset_score
-                        best_subset = list(subset)
-            else:
-                beam_search_performed = True
-                current_beam = [frozenset()]
+            # Empty nodes of the same family are identical, therefore only possibly need to evaluate n of them.   
+            active = sorted(
+            [nd for nd in group if nd.CPUs_in_use > 0 or nd.GPUs_in_use > 0 or nd.memory_in_use > 0],
+            key=lambda node: (node.list_position, node.id)
+            )
+            empty = sorted(
+                [nd for nd in group if nd.CPUs_in_use == 0 and nd.GPUs_in_use == 0 and nd.memory_in_use == 0],
+                key=lambda node: (node.list_position, node.id)
+            )
+            candidates = active + empty[:n]
 
-                for _ in range(n):
-                    candidates_map = {}
-                    for partial in current_beam:
-                        for node in group:
-                            if node in partial:
-                                continue
-                            new_partial = partial | frozenset([node])
-                            score = self.score_subset(list(new_partial), job)
-                            if new_partial not in candidates_map or score > candidates_map[new_partial]:
-                                candidates_map[new_partial] = score
+            if len(candidates) < n:
+                continue
 
-                    if not candidates_map:
-                        break
+            for subset in combinations(candidates, n):
+                if not self.nodes_have_capacity(subset, job):
+                    continue
+                subset_score = self._evaluate_subset(list(subset), job)
+                if subset_score > best_score:
+                    best_score = subset_score
+                    best_subset = list(subset)
 
-                    sorted_candidates = sorted(candidates_map.items(), key=lambda x: x[1], reverse=True)
-                    current_beam = [s for s, _ in sorted_candidates[:self.BEAM_WIDTH]]
-
-                for partial in current_beam:
-                    if len(partial) < n:
-                        continue
-                    nodes_list = list(partial)
-                    if not self.nodes_have_capacity(nodes_list, job):
-                        continue
-                    subset_score = self.score_subset(nodes_list, job)
-                    if subset_score > best_score:
-                        best_score = subset_score
-                        best_subset = nodes_list
-
-        return best_subset, beam_search_performed
+        return best_subset
 
 class CopyRealNodeSelection(NodeSelectionStrategy): 
     """ Places jobs exactly where the real logs placed them for benchmarking. """ 
@@ -271,7 +250,7 @@ class CopyRealNodeSelection(NodeSelectionStrategy):
         return nodes, {"failed": False, "reason": ""}
 
 
-class NaiveFirstFit(NodeSelectionStrategy):
+class NaiveFeasible(NodeSelectionStrategy):
     """
     Picks the first feasible nodes found - no preference between equally feasible sets.
     """

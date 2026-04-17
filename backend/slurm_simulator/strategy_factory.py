@@ -5,7 +5,7 @@ from .slurm_simulator import (
     GreedyBlockFill,
     EvenSplit,
     CopyRealNodeSelection,
-    NaiveFirstFit,
+    NaiveFeasible,
     LoadSpreading,
     CPU_Best_Fit,
     GPU_Best_Fit,
@@ -43,8 +43,8 @@ def get_strategy_instance(strategy_name, strategy_type):
     if strategy_type == "node_selection_strategy":
         if strategy_name == "CopyRealNodeSelection":
             return CopyRealNodeSelection()
-        elif strategy_name == "NaiveFirstFit":
-            return NaiveFirstFit()
+        elif strategy_name == "NaiveFeasible":
+            return NaiveFeasible()
         elif strategy_name == "LoadSpreading":
             return LoadSpreading()
         elif strategy_name == "CPU_Best_Fit":
