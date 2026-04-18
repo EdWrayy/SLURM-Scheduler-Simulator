@@ -182,8 +182,11 @@ class NodeSelectionStrategy:
 
 
     def score_single_node(self, node, job) -> float:
-        # Strategy-specific node pruning score: same heuristic as score_subset
-        # but applied to a single node in its current state.
+        """
+        Strategy-specific node pruning score for reducing combinatorial search
+        Default is to score subset with single node
+        Should be overrided for each heuristic
+        """
         return self.score_subset([node], job)
 
 
@@ -291,6 +294,9 @@ class NaiveFeasible(NodeSelectionStrategy):
 
     def score_subset(self, nodes, job):
         return 0.0
+    
+    def score_single_node(self, node, job):
+        return -float(node.list_position)
 
 
 class LoadSpreading(NodeSelectionStrategy):
@@ -305,6 +311,16 @@ class LoadSpreading(NodeSelectionStrategy):
             mem_term = ((node.total_memory - node.memory_in_use) / node.total_memory) if node.total_memory > 0 else 0.0
             total += cpu_term + gpu_term + mem_term
         return total
+    
+    def score_single_node(self, node, job) -> float:
+        free_c = node.total_CPUs - node.CPUs_in_use
+        free_g = node.total_GPUs - node.GPUs_in_use
+        free_m = node.total_memory - node.memory_in_use
+
+        cpu_term = (free_c / node.total_CPUs) if node.total_CPUs > 0 else 0.0
+        gpu_term = (free_g / node.total_GPUs) if node.total_GPUs > 0 else 0.0
+        mem_term = (free_m / node.total_memory) if node.total_memory > 0 else 0.0
+        return cpu_term + gpu_term + mem_term
 
 
 class CPU_Best_Fit(NodeSelectionStrategy):
@@ -316,6 +332,12 @@ class CPU_Best_Fit(NodeSelectionStrategy):
             -((node.total_CPUs - node.CPUs_in_use) / node.total_CPUs) if node.total_CPUs > 0 else 0.0
             for node in nodes
         )
+    
+    def score_single_node(self, node, job) -> float:
+        n = max(job.nodes_required, 1)
+        share_c = job.CPUs_required / n
+        free_c = node.total_CPUs - node.CPUs_in_use
+        return -((free_c - share_c) / node.total_CPUs) if node.total_CPUs > 0 else 0.0
 
 
 class GPU_Best_Fit(NodeSelectionStrategy):
@@ -327,6 +349,12 @@ class GPU_Best_Fit(NodeSelectionStrategy):
             -((node.total_GPUs - node.GPUs_in_use) / node.total_GPUs) if node.total_GPUs > 0 else 0.0
             for node in nodes
         )
+    
+    def score_single_node(self, node, job) -> float:
+        n = max(job.nodes_required, 1)
+        share_g = job.GPUs_required / n
+        free_g = node.total_GPUs - node.GPUs_in_use
+        return -((free_g - share_g) / node.total_GPUs) if node.total_GPUs > 0 else 0.0
 
 
 class Manhattan_Slack_Best_Fit(NodeSelectionStrategy):
@@ -342,6 +370,22 @@ class Manhattan_Slack_Best_Fit(NodeSelectionStrategy):
             total += cpu_term + gpu_term + mem_term
         return -total
 
+    def score_single_node(self, node, job) -> float:
+        n = max(job.nodes_required, 1)
+
+        share_c = job.CPUs_required / n
+        share_g = job.GPUs_required / n
+        share_m = job.memory_required / n
+
+        free_c = node.total_CPUs - node.CPUs_in_use
+        free_g = node.total_GPUs - node.GPUs_in_use
+        free_m = node.total_memory - node.memory_in_use
+
+        cpu_term = ((free_c - share_c) / node.total_CPUs) if node.total_CPUs > 0 else 0.0
+        gpu_term = ((free_g - share_g) / node.total_GPUs) if node.total_GPUs > 0 else 0.0
+        mem_term = ((free_m - share_m) / node.total_memory) if node.total_memory > 0 else 0.0
+
+        return -(cpu_term + gpu_term + mem_term)
 
 class Dominant_Resource_Best_Fit(NodeSelectionStrategy):
     """
@@ -367,6 +411,36 @@ class Dominant_Resource_Best_Fit(NodeSelectionStrategy):
             else:
                 total += -((node.total_memory - node.memory_in_use) / node.total_memory) if node.total_memory > 0 else float("-inf")
         return total
+    
+
+    def score_single_node(self, node, job) -> float:
+        n = max(job.nodes_required, 1)
+
+        share_c = job.CPUs_required / n
+        share_g = job.GPUs_required / n
+        share_m = job.memory_required / n
+
+        cpu_share = (share_c / node.total_CPUs) if node.total_CPUs > 0 else float("-inf")
+        gpu_share = (share_g / node.total_GPUs) if node.total_GPUs > 0 else float("-inf")
+        mem_share = (share_m / node.total_memory) if node.total_memory > 0 else float("-inf")
+
+        dominant = max(
+            (cpu_share, "cpu"),
+            (gpu_share, "gpu"),
+            (mem_share, "mem"),
+            key=lambda x: x[0]
+        )[1]
+
+        free_c = node.total_CPUs - node.CPUs_in_use
+        free_g = node.total_GPUs - node.GPUs_in_use
+        free_m = node.total_memory - node.memory_in_use
+
+        if dominant == "cpu":
+            return -((free_c - share_c) / node.total_CPUs) if node.total_CPUs > 0 else float("-inf")
+        elif dominant == "gpu":
+            return -((free_g - share_g) / node.total_GPUs) if node.total_GPUs > 0 else float("-inf")
+        else:
+            return -((free_m - share_m) / node.total_memory) if node.total_memory > 0 else float("-inf")
 
 
 class Workload_Aware_Weighted_Manhattan_Slack(NodeSelectionStrategy):
@@ -384,6 +458,26 @@ class Workload_Aware_Weighted_Manhattan_Slack(NodeSelectionStrategy):
             mem_term = w_m * ((node.total_memory - node.memory_in_use) / node.total_memory) if node.total_memory > 0 else 0.0
             total += cpu_term + gpu_term + mem_term
         return -total
+    
+    
+    def score_single_node(self, node, job) -> float:
+        n = max(job.nodes_required, 1)
+
+        share_c = job.CPUs_required / n
+        share_g = job.GPUs_required / n
+        share_m = job.memory_required / n
+
+        free_c = node.total_CPUs - node.CPUs_in_use
+        free_g = node.total_GPUs - node.GPUs_in_use
+        free_m = node.total_memory - node.memory_in_use
+
+        w_c, w_g, w_m = self._get_weights(node)
+
+        cpu_term = w_c * ((free_c - share_c) / node.total_CPUs) if node.total_CPUs > 0 else 0.0
+        gpu_term = w_g * ((free_g - share_g) / node.total_GPUs) if node.total_GPUs > 0 else 0.0
+        mem_term = w_m * ((free_m - share_m) / node.total_memory) if node.total_memory > 0 else 0.0
+
+        return -(cpu_term + gpu_term + mem_term)
 
 
 class Workload_Aware_Weighted_Dominant_Resource(NodeSelectionStrategy):
@@ -414,6 +508,39 @@ class Workload_Aware_Weighted_Dominant_Resource(NodeSelectionStrategy):
             else:
                 total += -((node.total_memory - node.memory_in_use) / node.total_memory) if node.total_memory > 0 else float("-inf")
         return total
+    
+    
+    def score_single_node(self, node, job) -> float:
+        n = max(job.nodes_required, 1)
+
+        share_c = job.CPUs_required / n
+        share_g = job.GPUs_required / n
+        share_m = job.memory_required / n
+
+        w_c, w_g, w_m = self._get_weights(node)
+
+        cpu_share = w_c * (share_c / node.total_CPUs) if node.total_CPUs > 0 else float("-inf")
+        gpu_share = w_g * (share_g / node.total_GPUs) if node.total_GPUs > 0 else float("-inf")
+        mem_share = w_m * (share_m / node.total_memory) if node.total_memory > 0 else float("-inf")
+
+        dominant = max(
+            (cpu_share, "cpu"),
+            (gpu_share, "gpu"),
+            (mem_share, "mem"),
+            key=lambda x: x[0]
+        )[1]
+
+        free_c = node.total_CPUs - node.CPUs_in_use
+        free_g = node.total_GPUs - node.GPUs_in_use
+        free_m = node.total_memory - node.memory_in_use
+
+        if dominant == "cpu":
+            return -((free_c - share_c) / node.total_CPUs) if node.total_CPUs > 0 else float("-inf")
+        elif dominant == "gpu":
+            return -((free_g - share_g) / node.total_GPUs) if node.total_GPUs > 0 else float("-inf")
+        else:
+            return -((free_m - share_m) / node.total_memory) if node.total_memory > 0 else float("-inf")
+
 
 class ResourceDistributionStrategy():
     """Base class for resource distribution when a job is assigned to multiple nodes"""
