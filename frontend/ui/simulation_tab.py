@@ -167,10 +167,8 @@ class SimulationTab(QWidget):
                 "CPU_Best_Fit",
                 "GPU_Best_Fit",
                 "Manhattan_Slack_Best_Fit",
-                "Dot_Product_Best_Fit",
                 "Dominant_Resource_Best_Fit",
                 "Workload_Aware_Weighted_Manhattan_Slack",
-                "Workload_Aware_Dot_Product",
                 "Workload_Aware_Weighted_Dominant_Resource",
             ]
         )

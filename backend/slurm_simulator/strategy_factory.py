@@ -10,10 +10,8 @@ from .slurm_simulator import (
     CPU_Best_Fit,
     GPU_Best_Fit,
     Manhattan_Slack_Best_Fit,
-    Dot_Product_Best_Fit,
     Dominant_Resource_Best_Fit,
     Workload_Aware_Weighted_Manhattan_Slack,
-    Workload_Aware_Dot_Product,
     Workload_Aware_Weighted_Dominant_Resource,
     ActiveOnlyPowerModel,
     LinearWithIdlePowerModel,
@@ -23,7 +21,6 @@ from .slurm_simulator import (
 
 WORKLOAD_AWARE_STRATEGIES = {
     "Workload_Aware_Weighted_Manhattan_Slack": Workload_Aware_Weighted_Manhattan_Slack,
-    "Workload_Aware_Dot_Product": Workload_Aware_Dot_Product,
     "Workload_Aware_Weighted_Dominant_Resource": Workload_Aware_Weighted_Dominant_Resource,
 }
 
@@ -53,8 +50,6 @@ def get_strategy_instance(strategy_name, strategy_type):
             return GPU_Best_Fit()
         elif strategy_name == "Manhattan_Slack_Best_Fit":
             return Manhattan_Slack_Best_Fit()
-        elif strategy_name == "Dot_Product_Best_Fit":
-            return Dot_Product_Best_Fit()
         elif strategy_name == "Dominant_Resource_Best_Fit":
             return Dominant_Resource_Best_Fit()
         elif strategy_name in WORKLOAD_AWARE_STRATEGIES:

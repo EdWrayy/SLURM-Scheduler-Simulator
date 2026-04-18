@@ -120,6 +120,7 @@ class NodeSelectionStrategy:
     """Base class for node selection strategies when placing jobs"""
 
     DEFAULT_WEIGHTS = (1.0, 1.0, 1.0)
+    MAX_FULL_SUBSET_EVALUATIONS = 5000
 
     def __init__(self, family_weights: dict | None = None):
         """
@@ -174,6 +175,38 @@ class NodeSelectionStrategy:
         return candidate_node_groups
 
 
+    def _count_subsets(self, pool_size, subset_size):
+        if subset_size < 0 or pool_size < subset_size:
+            return 0
+        return math.comb(pool_size, subset_size)
+
+
+    def score_single_node(self, node, job) -> float:
+        # Strategy-specific node pruning score: same heuristic as score_subset
+        # but applied to a single node in its current state.
+        return self.score_subset([node], job)
+
+
+    def _shrink_candidates_to_threshold(self, candidates, job, n):
+        reduced = list(candidates)
+
+        while (
+            len(reduced) > n and
+            self._count_subsets(len(reduced), n) > self.MAX_FULL_SUBSET_EVALUATIONS
+        ):
+            worst_index = min(
+                range(len(reduced)),
+                key=lambda i: (
+                    self.score_single_node(reduced[i], job),
+                    reduced[i].list_position,
+                    reduced[i].id,
+                ),
+            )
+            reduced.pop(worst_index)
+
+        return reduced
+
+
     def score_subset(self, nodes, job) -> float:
         raise NotImplementedError
 
@@ -205,14 +238,15 @@ class NodeSelectionStrategy:
 
             # Empty nodes of the same family are identical, therefore only possibly need to evaluate n of them.   
             active = sorted(
-            [nd for nd in group if nd.CPUs_in_use > 0 or nd.GPUs_in_use > 0 or nd.memory_in_use > 0],
-            key=lambda node: (node.list_position, node.id)
+                [nd for nd in group if nd.CPUs_in_use > 0 or nd.GPUs_in_use > 0 or nd.memory_in_use > 0],
+                key=lambda node: (node.list_position, node.id)
             )
             empty = sorted(
                 [nd for nd in group if nd.CPUs_in_use == 0 and nd.GPUs_in_use == 0 and nd.memory_in_use == 0],
                 key=lambda node: (node.list_position, node.id)
             )
             candidates = active + empty[:n]
+            candidates = self._shrink_candidates_to_threshold(candidates, job, n)
 
             if len(candidates) < n:
                 continue
@@ -307,8 +341,6 @@ class Manhattan_Slack_Best_Fit(NodeSelectionStrategy):
             mem_term = ((node.total_memory - node.memory_in_use) / node.total_memory) if node.total_memory > 0 else 0.0
             total += cpu_term + gpu_term + mem_term
         return -total
-
-
 
 
 class Dominant_Resource_Best_Fit(NodeSelectionStrategy):
