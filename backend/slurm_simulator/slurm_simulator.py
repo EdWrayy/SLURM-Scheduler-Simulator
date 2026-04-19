@@ -289,15 +289,70 @@ class CopyRealNodeSelection(NodeSelectionStrategy):
 
 class NaiveFeasible(NodeSelectionStrategy):
     """
-    Picks the first feasible nodes found - no preference between equally feasible sets.
+    Fixed-order feasible baseline.
+
+    Uses static cluster order only. If the full combinatorial search is too large,
+    later nodes are trimmed until the subset count falls below the threshold.
     """
 
     def score_subset(self, nodes, job):
         return 0.0
-    
+
     def score_single_node(self, node, job):
         return -float(node.list_position)
 
+    def select_nodes(self, job, island_groups):
+        if job.nodes_required <= 0:
+            return [], {"failed": True, "reason": "invalid_nodes_required"}
+
+        n = job.nodes_required
+        candidate_node_groups = self.get_candidate_node_groups(job, island_groups)
+
+        for group in candidate_node_groups:
+            if len(group) < n:
+                continue
+
+            candidates = sorted(group, key=lambda node: (node.list_position, node.id))
+
+            while len(candidates) > n and self._count_subsets(len(candidates), n) > self.MAX_FULL_SUBSET_EVALUATIONS:
+                candidates.pop()
+
+            for subset in combinations(candidates, n):
+                if self.nodes_have_capacity(subset, job):
+                    return list(subset), {"failed": False, "reason": "first_fixed_order_feasible"}
+
+        return [], {"failed": True, "reason": "no_feasible_subset_found"}
+    
+
+
+class Active_Node_Reuse(NodeSelectionStrategy):
+    """
+    Prefer feasible subsets that reuse already-active nodes.
+    """
+    def _is_active(self, node):
+        return (
+            node.CPUs_in_use > 0
+            or node.GPUs_in_use > 0
+            or node.memory_in_use > 0
+        )
+
+    def score_subset(self, nodes, job):
+        return sum(1.0 for node in nodes if self._is_active(node))
+
+    def score_single_node(self, node, job):
+        return 1.0 if self._is_active(node) else 0.0
+
+    def _evaluate_subset(self, nodes, job):
+        # Snapshot activity state BEFORE the trial allocation.
+        pre_score = sum(1.0 for node in nodes if self._is_active(node))
+
+        # Still worth checking for errors here if resource distribution is impossible
+        record = self.resource_distribution_strategy.allocate_resources(job, nodes)
+        try:
+            return pre_score
+        finally:
+            for node, (cpus, gpus, mem) in record.items():
+                node.release_job(cpus, gpus, mem)
 
 class LoadSpreading(NodeSelectionStrategy):
     """

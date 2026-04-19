@@ -6,6 +6,7 @@ from .slurm_simulator import (
     EvenSplit,
     CopyRealNodeSelection,
     NaiveFeasible,
+    Active_Node_Reuse,
     LoadSpreading,
     CPU_Best_Fit,
     GPU_Best_Fit,
@@ -42,6 +43,8 @@ def get_strategy_instance(strategy_name, strategy_type):
             return CopyRealNodeSelection()
         elif strategy_name == "NaiveFeasible":
             return NaiveFeasible()
+        elif strategy_name == "Active_Node_Reuse":
+            return Active_Node_Reuse()
         elif strategy_name == "LoadSpreading":
             return LoadSpreading()
         elif strategy_name == "CPU_Best_Fit":

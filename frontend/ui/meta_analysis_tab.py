@@ -128,6 +128,13 @@ class MetaAnalysisTab(QWidget):
         self._save_meta_config()
 
     def _save_meta_config(self) -> None:
+        try:
+            with self.meta_config_path.open("r", encoding="utf-8") as file:
+                on_disk = json.load(file)
+        except (OSError, json.JSONDecodeError):
+            on_disk = {}
+        on_disk.update(self.meta_config)
+        self.meta_config = on_disk
         with self.meta_config_path.open("w", encoding="utf-8") as file:
             json.dump(self.meta_config, file, indent=2)
             file.write("\n")

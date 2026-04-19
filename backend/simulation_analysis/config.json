@@ -1,7 +1,7 @@
 {
-  "input_events_directory": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/root/simulation/LinearWithSleepPowerModel/Manhattan_Slack_Best_Fit/events",
-  "input_nodes_directory": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/root/simulation/LinearWithSleepPowerModel/Manhattan_Slack_Best_Fit/nodes",
-  "output_report_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\root\\simulation_analysis\\NewManhattanSlack",
-  "baseline_total_energy_kwh": 496555.336,
-  "ui_output_name": "NewManhattanSlack"
+  "input_events_directory": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/root/simulation/LinearWithSleepPowerModel/Workload_Aware_Weighted_Manhattan_Slack/events",
+  "input_nodes_directory": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/root/simulation/LinearWithSleepPowerModel/Workload_Aware_Weighted_Manhattan_Slack/nodes",
+  "output_report_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\root\\simulation_analysis\\Workload_Aware_Manhattan",
+  "baseline_total_energy_kwh": 500839.675,
+  "ui_output_name": "Workload_Aware_Manhattan"
 }

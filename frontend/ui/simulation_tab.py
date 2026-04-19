@@ -162,6 +162,7 @@ class SimulationTab(QWidget):
         self.node_selection_combo.addItems(
             [
                 "NaiveFeasible",
+                "Active_Node_Reuse",
                 "CopyRealNodeSelection",
                 "LoadSpreading",
                 "CPU_Best_Fit",
