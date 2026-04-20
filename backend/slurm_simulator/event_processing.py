@@ -8,6 +8,9 @@ BYTES_PER_GIB = 1024 ** 3
 
 
 def build_job_event_from_row(row):
+    estimated_deadline = getattr(row, "estimated_deadline", None)
+    if estimated_deadline is not None and pd.isna(estimated_deadline):
+        estimated_deadline = None
     job = Job(
         id=row.job_id,
         nodes_required=row.nodes_required,
@@ -18,6 +21,7 @@ def build_job_event_from_row(row):
         end_time=row.end_time,
         real_node_selection=ast.literal_eval(row.real_node_selection) if pd.notna(row.real_node_selection) else None,
         allowed_node_types=ast.literal_eval(row.allowed_node_types) if pd.notna(row.allowed_node_types) else None,
+        estimated_deadline=estimated_deadline,
     )
     event = JobEvent(job, row.action, row.time)
     return job, event
@@ -90,6 +94,7 @@ def append_records(
             "failure_reason": failure_reason,
             "job_start_time": start_ts,
             "job_end_time": end_ts,
+            "estimated_deadline": event.job.estimated_deadline,
             "job_duration_seconds": job_duration_seconds,
             "job_cpu_seconds": job_cpu_seconds,
             "job_gpu_seconds": job_gpu_seconds,

@@ -14,6 +14,8 @@ from .slurm_simulator import (
     Dominant_Resource_Best_Fit,
     Workload_Aware_Weighted_Manhattan_Slack,
     Workload_Aware_Weighted_Dominant_Resource,
+    Timelimit_CoSchedule,
+    Perfect_CoSchedule,
     ActiveOnlyPowerModel,
     LinearWithIdlePowerModel,
     LinearWithSleepPowerModel,
@@ -58,6 +60,10 @@ def get_strategy_instance(strategy_name, strategy_type):
         elif strategy_name in WORKLOAD_AWARE_STRATEGIES:
             family_weights = _load_family_weights()
             return WORKLOAD_AWARE_STRATEGIES[strategy_name](family_weights)
+        elif strategy_name == "Timelimit_CoSchedule":
+            return Timelimit_CoSchedule()
+        elif strategy_name == "Perfect_CoSchedule":
+            return Perfect_CoSchedule()
         else:
             raise ValueError(f"Unknown Selection Strategy: {strategy_name}")
 

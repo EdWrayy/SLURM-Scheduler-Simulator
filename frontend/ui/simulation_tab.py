@@ -171,6 +171,8 @@ class SimulationTab(QWidget):
                 "Dominant_Resource_Best_Fit",
                 "Workload_Aware_Weighted_Manhattan_Slack",
                 "Workload_Aware_Weighted_Dominant_Resource",
+                "Timelimit_CoSchedule",
+                "Perfect_CoSchedule",
             ]
         )
         self._set_combo_selection(

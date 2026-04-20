@@ -1,5 +1,6 @@
 from backend.common.models import Job
 import math
+from datetime import datetime
 from itertools import combinations
 
 
@@ -597,6 +598,109 @@ class Workload_Aware_Weighted_Dominant_Resource(NodeSelectionStrategy):
             return -((free_m - share_m) / node.total_memory) if node.total_memory > 0 else float("-inf")
 
 
+
+class DeadlineAware_CoSchedule(NodeSelectionStrategy):
+    """
+    Base class for temporal co-scheduling heuristics.
+
+    Tracks the latest expected finish time per node and prefers placements where
+    a job's finish time aligns with (or falls before) the node's latest current
+    finish, so nodes drain in sync.
+
+    Scoring in seconds, directly comparable:
+      - Empty node:  cost = job duration        (activating a new node)
+      - Active, latest >= job_deadline: cost = 0  (no extension, ideal)
+      - Active, latest <  job_deadline: cost = job_deadline - latest (extension)
+      Where latest is the latest deadline currently on a given node
+
+    Subclasses override _get_job_deadline to pick the time source.
+    """
+
+    def __init__(self, family_weights=None):
+        super().__init__(family_weights)
+        self.node_deadlines = {}  # node -> {job_id: deadline_timestamp}
+
+    # Called by subclass to choose deadline source
+    def _get_job_deadline(self, job):
+        raise NotImplementedError
+
+    # Called by SlurmSimulator to update latest deadline on nodes after placement is confirmed
+    def register_placement(self, job, nodes):
+        deadline = self._get_job_deadline(job)
+        if deadline is None:
+            deadline = datetime.max  # unknown -> treat as infinitely late
+        for node in nodes:
+            self.node_deadlines.setdefault(node, {})[job.id] = deadline
+
+    # Called by SlurmSimulator to update latest deadline on nodes after releasing a job    
+    def register_release(self, job_id, nodes):
+        for node in nodes:
+            entries = self.node_deadlines.get(node)
+            if entries is None:
+                continue
+            entries.pop(job_id, None)
+            if not entries:
+                del self.node_deadlines[node]
+
+    # Find the latest deadline of jobs currently on node
+    def _latest_deadline_on(self, node):
+        entries = self.node_deadlines.get(node)
+        if not entries:
+            return None
+        return max(entries.values())
+
+    
+    # Score the cost of placing a job on a given node
+    def _node_cost_seconds(self, node, job):
+        job_deadline = self._get_job_deadline(job)
+        if job_deadline is None:
+            # Placing a deadline-less job: fall back to preferring active over empty by a flat margin.
+            return 0.0 if self.node_deadlines.get(node) else 86400.0
+
+        latest = self._latest_deadline_on(node)
+        if latest is None:
+            # Empty node: activation cost = full job duration
+            return max(0.0, (job_deadline - job.start_time).total_seconds())
+
+        if job_deadline <= latest:
+            return 0.0
+        return (job_deadline - latest).total_seconds()
+
+    def score_single_node(self, node, job):
+        return -self._node_cost_seconds(node, job)
+
+    def score_subset(self, nodes, job):
+        return -sum(self._node_cost_seconds(n, job) for n in nodes)
+
+    def _evaluate_subset(self, nodes, job):
+        # Score from pre-allocation state (same pattern as Active_Node_Reuse).
+        pre_score = self.score_subset(nodes, job)
+        record = self.resource_distribution_strategy.allocate_resources(job, nodes)
+        try:
+            return pre_score
+        finally:
+            for node, (cpus, gpus, mem) in record.items():
+                node.release_job(cpus, gpus, mem)
+
+
+class Timelimit_CoSchedule(DeadlineAware_CoSchedule):
+    """
+    Realistic temporal heuristic: uses user-requested walltime (estimated_deadline).
+    """
+    def _get_job_deadline(self, job):
+        return job.estimated_deadline
+
+
+class Perfect_CoSchedule(DeadlineAware_CoSchedule):
+    """
+    Upper-bound temporal heuristic: uses actual end time from the logs.
+    Not available to real schedulers; used to bound the value of temporal info.
+    """
+    def _get_job_deadline(self, job):
+        return job.end_time
+
+
+
 class ResourceDistributionStrategy():
     """Base class for resource distribution when a job is assigned to multiple nodes"""
     def allocate_resources(self, job, nodes):
@@ -748,6 +852,9 @@ class SlurmSimulation:
             resource_distribution_record = self.resource_distribution_strategy.allocate_resources(job, selected_nodes)
             self.job_tracker[job.id] = resource_distribution_record
 
+            if hasattr(self.node_selection_strategy, "register_placement"):
+                self.node_selection_strategy.register_placement(job, selected_nodes)
+
             return True, info
 
         except ValueError:
@@ -762,8 +869,13 @@ class SlurmSimulation:
         if resource_distribution_record is None:
             return False
 
+        nodes = list(resource_distribution_record.keys())
         for node, (cpus, gpus, mem) in resource_distribution_record.items():
             node.release_job(cpus, gpus, mem)
+
+        if hasattr(self.node_selection_strategy, "register_release"):
+            self.node_selection_strategy.register_release(id, nodes)
+
         return True
 
 

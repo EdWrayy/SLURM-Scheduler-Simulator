@@ -1,5 +1,6 @@
 import pandas as pd
 import re
+from datetime import timedelta
 from pathlib import Path
 from backend.common.models import Job, JobEvent
 from backend.common.config import load_config
@@ -72,6 +73,46 @@ def parse_memory_to_bytes(mem_value, cpus=None, nodes=None):
         total_bytes *= int(nodes)
 
     return total_bytes
+
+
+def parse_log_datetime_column(series: pd.Series) -> pd.Series:
+    s = series.astype(str).str.strip().str.replace(r"\s+", " ", regex=True)
+
+    iso_mask = s.str.contains("T", na=False)
+
+    out = pd.Series(pd.NaT, index=s.index, dtype="datetime64[ns]")
+
+    out.loc[iso_mask] = pd.to_datetime(
+        s.loc[iso_mask],
+        format="%Y-%m-%dT%H:%M:%S",
+        errors="coerce",
+    )
+
+    out.loc[~iso_mask] = pd.to_datetime(
+        s.loc[~iso_mask],
+        format="%d/%m/%Y %H:%M:%S",
+        errors="coerce",
+    )
+
+    return out
+
+
+def parse_timelimit_to_timedelta(timelimit_str):
+    """Parse SLURM Timelimit (D-HH:MM:SS or HH:MM:SS) to timedelta. Returns None for UNLIMITED."""
+    s = str(timelimit_str).strip()
+    if not s or s.upper() == "UNLIMITED":
+        return None
+    days = 0
+    if "-" in s:
+        day_part, time_part = s.split("-", 1)
+        days = int(day_part)
+    else:
+        time_part = s
+    parts = time_part.split(":")
+    hours = int(parts[0]) if len(parts) > 0 else 0
+    minutes = int(parts[1]) if len(parts) > 1 else 0
+    seconds = int(parts[2]) if len(parts) > 2 else 0
+    return timedelta(days=days, hours=hours, minutes=minutes, seconds=seconds)
 
 
 def parse_alloc_tres(alloc_tres, nodes_required=None):
@@ -175,8 +216,15 @@ def load_job_events(df):
     We will also remove any unnecessary or invalid rows.
     """
 
-    df["Start"] = pd.to_datetime(df["Start"], errors="coerce")
-    df["End"] = pd.to_datetime(df["End"], errors="coerce")
+    df["Start"] = parse_log_datetime_column(df["Start"])
+    df["End"] = parse_log_datetime_column(df["End"])
+
+    invalid_time_mask = df["Start"].isna() | df["End"].isna()
+    invalid_time_count = int(invalid_time_mask.sum())
+    if invalid_time_count > 0:
+        print(f"Dropped {invalid_time_count} row(s) due to unparseable Start/End timestamps")
+        df = df[~invalid_time_mask].copy()
+
     zero_duration_mask = df["Start"] == df["End"]
     zero_duration_count = int(zero_duration_mask.sum())
     if zero_duration_count > 0:
@@ -204,6 +252,9 @@ def load_job_events(df):
         start_time = row["Start"]
         end_time = row["End"]
 
+        timelimit_delta = parse_timelimit_to_timedelta(row.get("Timelimit", None))
+        estimated_deadline = (start_time + timelimit_delta) if timelimit_delta is not None else None
+
         job = Job(
             id=job_id,
             nodes_required=nodes_required,
@@ -213,8 +264,8 @@ def load_job_events(df):
             start_time=start_time,
             end_time=end_time,
             real_node_selection=real_selected_nodes,
-            allowed_node_types=list({re.sub(r'\d+$', '', name) for name in real_selected_nodes}) if real_selected_nodes else None
-
+            allowed_node_types=list({re.sub(r'\d+$', '', name) for name in real_selected_nodes}) if real_selected_nodes else None,
+            estimated_deadline=estimated_deadline,
         )
 
         events.append(JobEvent(job=job, action="start", time=start_time))
@@ -240,7 +291,7 @@ def read_slurm_logs(input_directory):
 
     print(f"Found {len(txt_files)} .txt files in {input_directory}")
 
-    required_columns = ['AllocTRES', 'AllocNodes', 'JobID', 'Start', 'End', 'NodeList']
+    required_columns = ['AllocTRES', 'AllocNodes', 'JobID', 'Start', 'End', 'NodeList', 'Timelimit']
 
     dfs = []
     for txt_file in txt_files:
@@ -336,6 +387,7 @@ def convert_logs(config):
             'action': event.action,
             'time': event.time,
             'allowed_node_types': str(event.job.allowed_node_types) if event.job.allowed_node_types else None,
+            'estimated_deadline': event.job.estimated_deadline,
 
         }
         for event in events])
@@ -349,8 +401,21 @@ def convert_logs(config):
 
     print(f"Removed {duplicates_removed} duplicate events")
     print(f"Events shape after deduplication: {events_df.shape}")
-    print(f"\nFirst 5 rows:")
-    print(events_df.head())
+
+    print(f"\n--- Sample jobs (1 per quarter) ---")
+    starts = events_df[events_df["action"] == "start"].reset_index(drop=True)
+    n = len(starts)
+    for q, label in enumerate(["Q1", "Q2", "Q3", "Q4"]):
+        row = starts.iloc[int((q * n + n // 2) // 4)]
+        print(
+            f"\n  {label}: job_id={row['job_id']}"
+            f"  nodes={row['nodes_required']} cpus={row['CPUs_required']} gpus={row['GPUs_required']}"
+            f"  mem={row['memory_required']:,}B"
+            f"  start={row['start_time']}"
+            f"  end={row['end_time']}"
+            f"  deadline={row['estimated_deadline']}"
+            f"  nodes_selected={row['real_node_selection']}"
+        )
 
     # Save to parquet
     output_path = Path(output_directory)
