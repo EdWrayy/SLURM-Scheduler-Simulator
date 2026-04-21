@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 
 from backend.common.config import load_config
 from backend.data_handling.convert_to_csv import convert_to_csv
+from backend.data_handling.filter_node_family import filter_to_node_family
 from backend.data_handling.log_file_conversion import convert_logs
 from backend.data_handling.resource_weights import compute_resource_weights, save_weights
 from backend.data_handling.workload_breakdown import workload_breakdown
@@ -118,6 +119,44 @@ class DataHandlingTab(QWidget):
         self.run_breakdown_button.clicked.connect(self._run_workload_breakdown)
         layout.addWidget(self.run_breakdown_button)
 
+        filter_group = QGroupBox("Filter to Node Family")
+        filter_layout = QFormLayout()
+
+        self.filter_input_parquet_path = QLineEdit(config["filter_input_parquet_file"])
+        self.filter_input_parquet_browse = QPushButton("Browse...")
+        self.filter_input_parquet_browse.clicked.connect(self._browse_filter_input_parquet)
+        self.filter_input_parquet_path.editingFinished.connect(self._save_filter_input_parquet)
+        filter_input_row = QHBoxLayout()
+        filter_input_row.addWidget(self.filter_input_parquet_path)
+        filter_input_row.addWidget(self.filter_input_parquet_browse)
+        filter_layout.addRow("Input Parquet File:", filter_input_row)
+
+        self.filter_node_family_input = QLineEdit(config["filter_node_family"])
+        self.filter_node_family_input.setPlaceholderText("e.g. ruby")
+        self.filter_node_family_input.editingFinished.connect(self._save_filter_node_family)
+        filter_layout.addRow("Node Family:", self.filter_node_family_input)
+
+        self.filter_output_directory_path = QLineEdit(config["filter_output_directory"])
+        self.filter_output_directory_browse = QPushButton("Browse...")
+        self.filter_output_directory_browse.clicked.connect(self._browse_filter_output_directory)
+        self.filter_output_directory_path.editingFinished.connect(self._save_filter_output_directory)
+        filter_output_dir_row = QHBoxLayout()
+        filter_output_dir_row.addWidget(self.filter_output_directory_path)
+        filter_output_dir_row.addWidget(self.filter_output_directory_browse)
+        filter_layout.addRow("Output Folder:", filter_output_dir_row)
+
+        self.filter_output_filename_input = QLineEdit(config["filter_output_filename"])
+        self.filter_output_filename_input.setPlaceholderText("e.g. ruby-only-jobs")
+        self.filter_output_filename_input.editingFinished.connect(self._save_filter_output_filename)
+        filter_layout.addRow("Output Filename:", self.filter_output_filename_input)
+
+        filter_group.setLayout(filter_layout)
+        layout.addWidget(filter_group)
+
+        self.run_filter_button = QPushButton("Filter to Node Family")
+        self.run_filter_button.clicked.connect(self._run_filter_node_family)
+        layout.addWidget(self.run_filter_button)
+
         weights_group = QGroupBox("Resource Weights")
         weights_layout = QFormLayout()
 
@@ -159,6 +198,10 @@ class DataHandlingTab(QWidget):
             "csv_input_file": "",
             "csv_output_file": "",
             "breakdown_parquet_file": "",
+            "filter_input_parquet_file": "",
+            "filter_node_family": "",
+            "filter_output_directory": "",
+            "filter_output_filename": "",
             "weights_parquet_file": "",
             "weights_output_directory": "",
         }
@@ -173,6 +216,10 @@ class DataHandlingTab(QWidget):
                 "csv_input_file": str(config.get("csv_input_file", "")),
                 "csv_output_file": str(config.get("csv_output_file", "")),
                 "breakdown_parquet_file": str(config.get("breakdown_parquet_file", "")),
+                "filter_input_parquet_file": str(config.get("filter_input_parquet_file", "")),
+                "filter_node_family": str(config.get("filter_node_family", "")),
+                "filter_output_directory": str(config.get("filter_output_directory", "")),
+                "filter_output_filename": str(config.get("filter_output_filename", "")),
                 "weights_parquet_file": str(config.get("weights_parquet_file", "")),
                 "weights_output_directory": str(config.get("weights_output_directory", "")),
             }
@@ -311,13 +358,16 @@ class DataHandlingTab(QWidget):
             QMessageBox.warning(self, "Missing File", "Please provide a parquet file path.")
             return
 
+        nodes_json = Path(__file__).resolve().parents[2] / "backend" / "data_handling" / "nodes.json"
+        nodes_config_path = str(nodes_json) if nodes_json.exists() else None
+
         self.run_breakdown_button.setEnabled(False)
         terminal_stream = TerminalStream(self.terminal_panel)
         self.terminal_panel.append_text("\n[data-handling] Running workload breakdown...\n")
 
         try:
             with redirect_stdout(terminal_stream), redirect_stderr(terminal_stream):
-                workload_breakdown(parquet_file)
+                workload_breakdown(parquet_file, nodes_config_path)
         except Exception as exc:
             self.terminal_panel.append_text(f"\n[data-handling] Workload breakdown failed: {exc}\n")
             QMessageBox.critical(self, "Workload Breakdown Failed", str(exc))
@@ -388,6 +438,69 @@ class DataHandlingTab(QWidget):
         self.terminal_panel.append_text("\n[data-handling] Resource weights computed successfully.\n")
         QMessageBox.information(self, "Resource Weights Complete", f"Weights saved to:\n{output_file}")
         self.run_weights_button.setEnabled(True)
+
+    def _browse_filter_input_parquet(self) -> None:
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Input Parquet File",
+            "",
+            "Parquet Files (*.parquet);;All Files (*)",
+        )
+        if file_path:
+            self.filter_input_parquet_path.setText(file_path)
+            self._save_filter_input_parquet()
+
+    def _browse_filter_output_directory(self) -> None:
+        folder = QFileDialog.getExistingDirectory(self, "Select Output Folder")
+        if folder:
+            self.filter_output_directory_path.setText(folder)
+            self._save_filter_output_directory()
+
+    def _save_filter_input_parquet(self) -> None:
+        self._set_config_value("filter_input_parquet_file", self.filter_input_parquet_path.text().strip())
+
+    def _save_filter_node_family(self) -> None:
+        self._set_config_value("filter_node_family", self.filter_node_family_input.text().strip())
+
+    def _save_filter_output_directory(self) -> None:
+        self._set_config_value("filter_output_directory", self.filter_output_directory_path.text().strip())
+
+    def _save_filter_output_filename(self) -> None:
+        self._set_config_value("filter_output_filename", self.filter_output_filename_input.text().strip())
+
+    def _run_filter_node_family(self) -> None:
+        self._save_filter_input_parquet()
+        self._save_filter_node_family()
+        self._save_filter_output_directory()
+        self._save_filter_output_filename()
+
+        parquet_file = self.filter_input_parquet_path.text().strip()
+        family = self.filter_node_family_input.text().strip()
+        output_dir = self.filter_output_directory_path.text().strip()
+        output_filename = self.filter_output_filename_input.text().strip()
+
+        if not parquet_file or not family or not output_dir or not output_filename:
+            QMessageBox.warning(
+                self, "Missing Fields", "Please fill in all fields: input file, node family, output folder, and filename."
+            )
+            return
+
+        self.run_filter_button.setEnabled(False)
+        terminal_stream = TerminalStream(self.terminal_panel)
+        self.terminal_panel.append_text(f"\n[data-handling] Filtering to node family '{family}'...\n")
+
+        try:
+            with redirect_stdout(terminal_stream), redirect_stderr(terminal_stream):
+                out_path = filter_to_node_family(parquet_file, family, output_dir, output_filename)
+        except Exception as exc:
+            self.terminal_panel.append_text(f"\n[data-handling] Filter failed: {exc}\n")
+            QMessageBox.critical(self, "Filter Failed", str(exc))
+            self.run_filter_button.setEnabled(True)
+            return
+
+        self.terminal_panel.append_text("\n[data-handling] Filter complete.\n")
+        QMessageBox.information(self, "Filter Complete", f"Filtered parquet saved to:\n{out_path}")
+        self.run_filter_button.setEnabled(True)
 
     def _set_config_value(self, key: str, value: str) -> None:
         config = self._load_conversion_config()

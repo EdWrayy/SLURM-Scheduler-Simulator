@@ -24,7 +24,7 @@ def main():
     pareto_path = plot_pareto(df, output_directory / "plots", pareto_x, pareto_y)
 
     print("Saved rankings:", rankings_path)
-    print("Saved pareto plot:", pareto_path)
+    print("Saved energy savings vs dropped work plot:", pareto_path)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 {
-  "input_events_directory": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/root/simulation/LinearWithIdlePowerModel/NaiveFeasible/events",
-  "input_nodes_directory": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/root/simulation/LinearWithIdlePowerModel/NaiveFeasible/nodes",
-  "output_report_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\root\\simulation_analysis\\No_Sleep_Naive_Feasible",
-  "baseline_total_energy_kwh": 500916.048,
-  "ui_output_name": "No_Sleep_Naive_Feasible"
+  "input_events_directory": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/root/simulation/LinearWithSleepPowerModel/Active_Node_Reuse/events",
+  "input_nodes_directory": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/root/simulation/LinearWithSleepPowerModel/Active_Node_Reuse/nodes",
+  "output_report_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\root\\simulation_analysis\\Ruby_Only_Active_Node_Reuse",
+  "baseline_total_energy_kwh": 105909.593,
+  "ui_output_name": "Ruby_Only_Active_Node_Reuse"
 }

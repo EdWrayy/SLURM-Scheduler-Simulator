@@ -16,7 +16,7 @@ def plot_pareto(df, plots_dir, pareto_x, pareto_y):
     for i, r in plot_df.iterrows():
         ax.scatter(r[pareto_x], r[pareto_y], color=colors[i], s=60, label=r["name"])
 
-    ax.set_title("Pareto Trade-Off")
+    ax.set_title("Energy Savings vs Dropped Work")
     ax.set_xlabel(pareto_x)
     ax.set_ylabel(pareto_y)
 
@@ -24,7 +24,7 @@ def plot_pareto(df, plots_dir, pareto_x, pareto_y):
 
     fig.tight_layout()
 
-    out_path = plots_dir / "pareto_tradeoff.png"
+    out_path = plots_dir / "energy_savings_vs_dropped_work.png"
     fig.savefig(out_path, dpi=200, bbox_inches="tight")
     plt.close(fig)
 
