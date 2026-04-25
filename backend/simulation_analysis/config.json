@@ -1,7 +1,7 @@
 {
-  "input_events_directory": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/root/simulation/LinearWithSleepPowerModel/Active_Node_Reuse/events",
-  "input_nodes_directory": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/root/simulation/LinearWithSleepPowerModel/Active_Node_Reuse/nodes",
-  "output_report_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\root\\simulation_analysis\\Ruby_Only_Active_Node_Reuse",
-  "baseline_total_energy_kwh": 105909.593,
-  "ui_output_name": "Ruby_Only_Active_Node_Reuse"
+  "input_events_directory": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/root/simulation/LinearWithSleepPowerModel/Node_Dependent_Best_Fit/events",
+  "input_nodes_directory": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/root/simulation/LinearWithSleepPowerModel/Node_Dependent_Best_Fit/nodes",
+  "output_report_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\root\\simulation_analysis\\Node_Dependent_Best_Fit",
+  "baseline_total_energy_kwh": 500916.048,
+  "ui_output_name": "Node_Dependent_Best_Fit"
 }

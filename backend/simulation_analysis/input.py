@@ -5,7 +5,7 @@ import pandas as pd
 
 NODE_BATCH_SIZE = 500_000
 
-# New simulator node output format: one pre-aggregated node snapshot per event.
+
 NODE_COLUMNS = [
     "event_index",
     "total_cpus",

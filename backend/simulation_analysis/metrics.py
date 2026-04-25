@@ -236,11 +236,9 @@ def calculate_p95(metric_values, time_durations):
     """
     Time-weighted 95th percentile.
     """
-    # Convert inputs to numpy arrays
     metric_values = np.asarray(metric_values, dtype=float)
     time_durations = np.asarray(time_durations, dtype=float)
 
-    # Keep only valid samples that represent real time
     valid_mask = (
         np.isfinite(metric_values)
         & np.isfinite(time_durations)

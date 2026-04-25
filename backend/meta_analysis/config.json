@@ -1,9 +1,9 @@
 {
   "input_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\Meta Analysis Input\\Full Year",
-  "output_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\root\\meta_analysis\\Full Year",
-  "include_keys": "energy_saving_pct, dropped_work_pct, total_energy_kwh, average_power_kw, cpu_util_mean, gpu_util_mean, mean_active_nodes",
+  "output_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\root\\meta_analysis\\Full Year All Heuristrics",
+  "include_keys": "energy_saving_pct, dropped_work_pct, total_energy_kwh, average_power_kw, cpu_util_mean, gpu_util_mean, mean_active_nodes, mean_free_cpus_active_nodes, mean_free_gpus_active_nodes, mean_free_memory_active_nodes",
   "higher_is_better": "energy_saving_pct, cpu_util_mean, gpu_util_mean",
   "pareto_x": "dropped_work_pct",
   "pareto_y": "energy_saving_pct",
-  "ui_output_name": "Full Year"
+  "ui_output_name": "Full Year All Heuristrics"
 }

@@ -4,11 +4,11 @@
   "output_filename": "April-April-With-Deadlines",
   "csv_input_file": "",
   "csv_output_file": "",
-  "breakdown_parquet_file": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/Simulation Input Parquet Files/April-April-With-Deadlines.parquet",
+  "breakdown_parquet_file": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/Simulation Input Parquet Files/April-April-Ruby-Only.parquet",
   "filter_input_parquet_file": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/Simulation Input Parquet Files/April-April-With-Deadlines.parquet",
-  "filter_node_family": "ruby",
+  "filter_node_family": "swarma",
   "filter_output_directory": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/Simulation Input Parquet Files",
-  "filter_output_filename": "April-April-Ruby-Only",
+  "filter_output_filename": "April-April-Swarma-Only",
   "weights_parquet_file": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/Simulation Input Parquet Files/newest_logs_year.parquet",
   "weights_output_directory": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/Weights/April-April"
 }

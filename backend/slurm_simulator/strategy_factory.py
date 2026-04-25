@@ -14,6 +14,7 @@ from .slurm_simulator import (
     Dominant_Resource_Best_Fit,
     Workload_Aware_Weighted_Manhattan_Slack,
     Workload_Aware_Weighted_Dominant_Resource,
+    Node_Dependent_Best_Fit,
     Timelimit_CoSchedule,
     Perfect_CoSchedule,
     ActiveOnlyPowerModel,
@@ -57,6 +58,8 @@ def get_strategy_instance(strategy_name, strategy_type):
             return Manhattan_Slack_Best_Fit()
         elif strategy_name == "Dominant_Resource_Best_Fit":
             return Dominant_Resource_Best_Fit()
+        elif strategy_name == "Node_Dependent_Best_Fit":
+            return Node_Dependent_Best_Fit()
         elif strategy_name in WORKLOAD_AWARE_STRATEGIES:
             family_weights = _load_family_weights()
             return WORKLOAD_AWARE_STRATEGIES[strategy_name](family_weights)

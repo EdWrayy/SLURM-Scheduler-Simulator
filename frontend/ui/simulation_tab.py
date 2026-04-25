@@ -169,6 +169,7 @@ class SimulationTab(QWidget):
                 "GPU_Best_Fit",
                 "Manhattan_Slack_Best_Fit",
                 "Dominant_Resource_Best_Fit",
+                "Node_Dependent_Best_Fit",
                 "Workload_Aware_Weighted_Manhattan_Slack",
                 "Workload_Aware_Weighted_Dominant_Resource",
                 "Timelimit_CoSchedule",

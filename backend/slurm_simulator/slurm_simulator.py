@@ -125,8 +125,8 @@ class NodeSelectionStrategy:
 
     def __init__(self, family_weights: dict | None = None):
         """
-        family_weights: optional per-node-type resource weights.
-        Strategies that do not use weights can omit this argument.
+        family_weights: optional per-node-type resource weights
+        not needed for other heuristics
         """
 
         self.family_weights: dict[str, tuple[float, float, float]] = {}
@@ -413,6 +413,23 @@ class GPU_Best_Fit(NodeSelectionStrategy):
         return -((free_g - share_g) / node.total_GPUs) if node.total_GPUs > 0 else 0.0
 
 
+class Node_Dependent_Best_Fit(NodeSelectionStrategy):
+    """CPU best fit on ruby nodes, GPU best fit on all other node families."""
+
+    _cpu = CPU_Best_Fit()
+    _gpu = GPU_Best_Fit()
+
+    def score_subset(self, nodes, job):
+        if nodes[0].node_type == "ruby":
+            return self._cpu.score_subset(nodes, job)
+        return self._gpu.score_subset(nodes, job)
+
+    def score_single_node(self, node, job) -> float:
+        if node.node_type == "ruby":
+            return self._cpu.score_single_node(node, job)
+        return self._gpu.score_single_node(node, job)
+
+
 class Manhattan_Slack_Best_Fit(NodeSelectionStrategy):
     """
     Prefer subsets that minimise total normalised remaining slack across all resource dimensions.
@@ -606,12 +623,6 @@ class DeadlineAware_CoSchedule(NodeSelectionStrategy):
     Tracks the latest expected finish time per node and prefers placements where
     a job's finish time aligns with (or falls before) the node's latest current
     finish, so nodes drain in sync.
-
-    Scoring in seconds, directly comparable:
-      - Empty node:  cost = job duration        (activating a new node)
-      - Active, latest >= job_deadline: cost = 0  (no extension, ideal)
-      - Active, latest <  job_deadline: cost = job_deadline - latest (extension)
-      Where latest is the latest deadline currently on a given node
 
     Subclasses override _get_job_deadline to pick the time source.
     """
