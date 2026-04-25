@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
 
 from backend.common.config import load_config
 from backend.data_handling.convert_to_csv import convert_to_csv
-from backend.data_handling.filter_node_family import filter_to_node_family
+from backend.data_handling.filter_node_family import filter_to_node_family, filter_to_single_node
 from backend.data_handling.log_file_conversion import convert_logs
 from backend.data_handling.resource_weights import compute_resource_weights, save_weights
 from backend.data_handling.workload_breakdown import workload_breakdown
@@ -157,6 +157,39 @@ class DataHandlingTab(QWidget):
         self.run_filter_button.clicked.connect(self._run_filter_node_family)
         layout.addWidget(self.run_filter_button)
 
+        single_node_group = QGroupBox("Filter to Single Node Jobs")
+        single_node_layout = QFormLayout()
+
+        self.single_node_input_parquet_path = QLineEdit(config["single_node_input_parquet_file"])
+        self.single_node_input_parquet_browse = QPushButton("Browse...")
+        self.single_node_input_parquet_browse.clicked.connect(self._browse_single_node_input_parquet)
+        self.single_node_input_parquet_path.editingFinished.connect(self._save_single_node_input_parquet)
+        single_node_input_row = QHBoxLayout()
+        single_node_input_row.addWidget(self.single_node_input_parquet_path)
+        single_node_input_row.addWidget(self.single_node_input_parquet_browse)
+        single_node_layout.addRow("Input Parquet File:", single_node_input_row)
+
+        self.single_node_output_directory_path = QLineEdit(config["single_node_output_directory"])
+        self.single_node_output_directory_browse = QPushButton("Browse...")
+        self.single_node_output_directory_browse.clicked.connect(self._browse_single_node_output_directory)
+        self.single_node_output_directory_path.editingFinished.connect(self._save_single_node_output_directory)
+        single_node_output_dir_row = QHBoxLayout()
+        single_node_output_dir_row.addWidget(self.single_node_output_directory_path)
+        single_node_output_dir_row.addWidget(self.single_node_output_directory_browse)
+        single_node_layout.addRow("Output Folder:", single_node_output_dir_row)
+
+        self.single_node_output_filename_input = QLineEdit(config["single_node_output_filename"])
+        self.single_node_output_filename_input.setPlaceholderText("e.g. single-node-jobs")
+        self.single_node_output_filename_input.editingFinished.connect(self._save_single_node_output_filename)
+        single_node_layout.addRow("Output Filename:", self.single_node_output_filename_input)
+
+        single_node_group.setLayout(single_node_layout)
+        layout.addWidget(single_node_group)
+
+        self.run_single_node_filter_button = QPushButton("Filter to Single Node Jobs")
+        self.run_single_node_filter_button.clicked.connect(self._run_filter_single_node)
+        layout.addWidget(self.run_single_node_filter_button)
+
         weights_group = QGroupBox("Resource Weights")
         weights_layout = QFormLayout()
 
@@ -204,6 +237,9 @@ class DataHandlingTab(QWidget):
             "filter_output_filename": "",
             "weights_parquet_file": "",
             "weights_output_directory": "",
+            "single_node_input_parquet_file": "",
+            "single_node_output_directory": "",
+            "single_node_output_filename": "",
         }
 
         try:
@@ -222,6 +258,9 @@ class DataHandlingTab(QWidget):
                 "filter_output_filename": str(config.get("filter_output_filename", "")),
                 "weights_parquet_file": str(config.get("weights_parquet_file", "")),
                 "weights_output_directory": str(config.get("weights_output_directory", "")),
+                "single_node_input_parquet_file": str(config.get("single_node_input_parquet_file", "")),
+                "single_node_output_directory": str(config.get("single_node_output_directory", "")),
+                "single_node_output_filename": str(config.get("single_node_output_filename", "")),
             }
         except (OSError, json.JSONDecodeError):
             return default_config
@@ -501,6 +540,61 @@ class DataHandlingTab(QWidget):
         self.terminal_panel.append_text("\n[data-handling] Filter complete.\n")
         QMessageBox.information(self, "Filter Complete", f"Filtered parquet saved to:\n{out_path}")
         self.run_filter_button.setEnabled(True)
+
+    def _browse_single_node_input_parquet(self) -> None:
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select Input Parquet File", "", "Parquet Files (*.parquet);;All Files (*)"
+        )
+        if file_path:
+            self.single_node_input_parquet_path.setText(file_path)
+            self._save_single_node_input_parquet()
+
+    def _browse_single_node_output_directory(self) -> None:
+        folder = QFileDialog.getExistingDirectory(self, "Select Output Folder")
+        if folder:
+            self.single_node_output_directory_path.setText(folder)
+            self._save_single_node_output_directory()
+
+    def _save_single_node_input_parquet(self) -> None:
+        self._set_config_value("single_node_input_parquet_file", self.single_node_input_parquet_path.text().strip())
+
+    def _save_single_node_output_directory(self) -> None:
+        self._set_config_value("single_node_output_directory", self.single_node_output_directory_path.text().strip())
+
+    def _save_single_node_output_filename(self) -> None:
+        self._set_config_value("single_node_output_filename", self.single_node_output_filename_input.text().strip())
+
+    def _run_filter_single_node(self) -> None:
+        self._save_single_node_input_parquet()
+        self._save_single_node_output_directory()
+        self._save_single_node_output_filename()
+
+        parquet_file = self.single_node_input_parquet_path.text().strip()
+        output_dir = self.single_node_output_directory_path.text().strip()
+        output_filename = self.single_node_output_filename_input.text().strip()
+
+        if not parquet_file or not output_dir or not output_filename:
+            QMessageBox.warning(
+                self, "Missing Fields", "Please fill in all fields: input file, output folder, and filename."
+            )
+            return
+
+        self.run_single_node_filter_button.setEnabled(False)
+        terminal_stream = TerminalStream(self.terminal_panel)
+        self.terminal_panel.append_text("\n[data-handling] Filtering to single node jobs...\n")
+
+        try:
+            with redirect_stdout(terminal_stream), redirect_stderr(terminal_stream):
+                out_path = filter_to_single_node(parquet_file, output_dir, output_filename)
+        except Exception as exc:
+            self.terminal_panel.append_text(f"\n[data-handling] Filter failed: {exc}\n")
+            QMessageBox.critical(self, "Filter Failed", str(exc))
+            self.run_single_node_filter_button.setEnabled(True)
+            return
+
+        self.terminal_panel.append_text("\n[data-handling] Filter complete.\n")
+        QMessageBox.information(self, "Filter Complete", f"Filtered parquet saved to:\n{out_path}")
+        self.run_single_node_filter_button.setEnabled(True)
 
     def _set_config_value(self, key: str, value: str) -> None:
         config = self._load_conversion_config()

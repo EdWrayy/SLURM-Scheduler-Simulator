@@ -4,13 +4,11 @@ import matplotlib.cm as cm
 import numpy as np
 
 
-def plot_pareto(df, plots_dir, pareto_x, pareto_y, exclude_names=None, filename="energy_savings_vs_dropped_work.png"):
+def plot_pareto(df, plots_dir, pareto_x, pareto_y, filename="energy_savings_vs_dropped_work.png"):
     plots_dir = Path(plots_dir)
     plots_dir.mkdir(parents=True, exist_ok=True)
 
     plot_df = df[["name", pareto_x, pareto_y]].dropna(subset=[pareto_x, pareto_y]).copy()
-    if exclude_names:
-        plot_df = plot_df[~plot_df["name"].isin(exclude_names)]
     plot_df = plot_df.reset_index(drop=True)
 
     colors = cm.tab20(np.linspace(0, 1, len(plot_df)))
@@ -34,13 +32,11 @@ def plot_pareto(df, plots_dir, pareto_x, pareto_y, exclude_names=None, filename=
     return out_path
 
 
-def plot_scatter(df, plots_dir, x_key, y_key, title, filename, exclude_names=None):
+def plot_scatter(df, plots_dir, x_key, y_key, title, filename):
     plots_dir = Path(plots_dir)
     plots_dir.mkdir(parents=True, exist_ok=True)
 
     plot_df = df[["name", x_key, y_key]].dropna(subset=[x_key, y_key]).copy()
-    if exclude_names:
-        plot_df = plot_df[~plot_df["name"].isin(exclude_names)]
     plot_df = plot_df.reset_index(drop=True)
 
     colors = cm.tab20(np.linspace(0, 1, len(plot_df)))
@@ -64,7 +60,7 @@ def plot_scatter(df, plots_dir, x_key, y_key, title, filename, exclude_names=Non
     return out_path
 
 
-def plot_comparison_table(df, plots_dir, baseline_name="Naive_Feasible", exclude_names=None, filename="comparison_table.png"):
+def plot_comparison_table(df, plots_dir, baseline_name="Naive_Feasible", filename="comparison_table.png"):
     plots_dir = Path(plots_dir)
     plots_dir.mkdir(parents=True, exist_ok=True)
 
@@ -73,6 +69,7 @@ def plot_comparison_table(df, plots_dir, baseline_name="Naive_Feasible", exclude
         ("mean_free_cpus_active_nodes", "% Improved Free CPUs"),
         ("mean_active_nodes",           "% Reduced Active Nodes"),
         ("total_energy_kwh",            "% Reduced Total Energy"),
+        ("dropped_work_pct",            "% Reduced Dropped Work"),
     ]
     metric_keys = [c[0] for c in columns]
     col_labels  = [c[1] for c in columns]
@@ -86,8 +83,6 @@ def plot_comparison_table(df, plots_dir, baseline_name="Naive_Feasible", exclude
     baseline = baseline_rows.iloc[0]
 
     plot_df = plot_df[plot_df["name"] != baseline_name].copy()
-    if exclude_names:
-        plot_df = plot_df[~plot_df["name"].isin(exclude_names)]
     plot_df = plot_df.reset_index(drop=True)
 
     cell_vals = []

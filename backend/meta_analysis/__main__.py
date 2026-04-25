@@ -22,15 +22,8 @@ def main():
     save_rankings_json(rankings, rankings_path)
 
     plots_dir = output_directory / "plots"
-    exclude_base = ["Node_Dependent"]
-    exclude_ls   = ["Node_Dependent", "Load_Spreading"]
 
-    pareto_all_path = plot_pareto(df, plots_dir, pareto_x, pareto_y,
-                                  exclude_names=exclude_base,
-                                  filename="energy_savings_vs_dropped_work.png")
-    pareto_no_ls_path = plot_pareto(df, plots_dir, pareto_x, pareto_y,
-                                    exclude_names=exclude_ls,
-                                    filename="energy_savings_vs_dropped_work_no_load_spreading.png")
+    pareto_path = plot_pareto(df, plots_dir, pareto_x, pareto_y)
 
     free_resources_path = plot_scatter(
         df, plots_dir,
@@ -38,7 +31,6 @@ def main():
         y_key="mean_free_gpus_active_nodes",
         title="Mean Free GPUs vs Mean Free CPUs (Active Nodes)",
         filename="mean_free_gpus_vs_cpus.png",
-        exclude_names=exclude_ls,
     )
 
     active_nodes_path = plot_scatter(
@@ -47,17 +39,12 @@ def main():
         y_key="mean_active_nodes",
         title="Mean Active Nodes vs Dropped Work %",
         filename="active_nodes_vs_dropped_work.png",
-        exclude_names=exclude_ls,
     )
 
-    table_path = plot_comparison_table(
-        df, plots_dir,
-        exclude_names=exclude_ls,
-    )
+    table_path = plot_comparison_table(df, plots_dir)
 
     print("Saved rankings:", rankings_path)
-    print("Saved energy savings vs dropped work plot:", pareto_all_path)
-    print("Saved energy savings vs dropped work (no Load Spreading):", pareto_no_ls_path)
+    print("Saved energy savings vs dropped work plot:", pareto_path)
     print("Saved mean free GPUs vs CPUs plot:", free_resources_path)
     print("Saved active nodes vs dropped work plot:", active_nodes_path)
     print("Saved comparison table:", table_path)

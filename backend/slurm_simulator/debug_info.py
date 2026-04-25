@@ -29,6 +29,14 @@ def _format_bytes_as_gib(value):
         return "n/a"
 
 
+def _build_node_job_map(job_tracker):
+    node_jobs = {}
+    for job_id, record in job_tracker.items():
+        for node in record:
+            node_jobs.setdefault(node, []).append(job_id)
+    return node_jobs
+
+
 def write_failed_placement_debug_file(debug_directory, event_index, event, failure_reason, slurm_sim):
     """
     Write one debug file per failed start placement.
@@ -75,6 +83,8 @@ def write_failed_placement_debug_file(debug_directory, event_index, event, failu
     lines.append("ELIGIBLE NODE FAMILIES AND NODE CAPACITIES")
     lines.append("-" * 72)
 
+    node_job_map = _build_node_job_map(slurm_sim.job_tracker)
+
     for node_type in allowed_types:
         nodes = _unique_nodes_for_type(slurm_sim.island_groups, node_type)
         lines.append(f"family: {node_type}")
@@ -112,6 +122,8 @@ def write_failed_placement_debug_file(debug_directory, event_index, event, failu
             free_cpu = node.total_CPUs - node.CPUs_in_use
             free_gpu = node.total_GPUs - node.GPUs_in_use
             free_mem = node.total_memory - node.memory_in_use
+            jobs_on_node = node_job_map.get(node, [])
+            jobs_str = ",".join(str(j) for j in jobs_on_node) if jobs_on_node else "none"
             lines.append(
                 "    "
                 f"name={node.name} id={node.id} list_position={node.list_position} "
@@ -119,7 +131,8 @@ def write_failed_placement_debug_file(debug_directory, event_index, event, failu
                 f"gpu_used/total/free={node.GPUs_in_use}/{node.total_GPUs}/{free_gpu} "
                 f"mem_used/total/free_bytes={node.memory_in_use}/{node.total_memory}/{free_mem} "
                 f"mem_free_gib={_format_bytes_as_gib(free_mem)} "
-                f"power_W={node.current_power_consumption}"
+                f"power_W={node.current_power_consumption} "
+                f"jobs={jobs_str}"
             )
         lines.append("")
 
