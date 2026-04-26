@@ -3,7 +3,7 @@
     {
       "node_type": "ruby",
       "config_order": 0,
-      "node_range": "ruby[001-074]",
+      "node_range": "[001-074]",
       "num_nodes": 74,
       "physical_cpus_per_node": 2,
       "cores_per_physical_cpu": 32,
@@ -18,15 +18,15 @@
         "ram": "ddr4",
         "dimm_size_GB": 16
       },
-      "network_islands":[
-          "ruby[001-046]",
-          "ruby[047-074]"
+      "network_islands": [
+        "ruby[001-046]",
+        "ruby[047-074]"
       ]
     },
     {
       "node_type": "ruby",
       "config_order": 0,
-      "node_range": "ruby[075-090]",
+      "node_range": "[075-090]",
       "num_nodes": 16,
       "physical_cpus_per_node": 2,
       "cores_per_physical_cpu": 32,
@@ -41,14 +41,14 @@
         "ram": "ddr4",
         "dimm_size_GB": 16
       },
-      "network_islands":[
-          "ruby[075-090]"
+      "network_islands": [
+        "ruby[075-090]"
       ]
     },
     {
       "node_type": "swarmh",
       "config_order": 1,
-      "node_range": "swarmh[1001-1002]",
+      "node_range": "[1001-1002]",
       "num_nodes": 2,
       "physical_cpus_per_node": 2,
       "cores_per_physical_cpu": 48,
@@ -63,15 +63,15 @@
         "ram": "ddr5",
         "dimm_size_GB": 32
       },
-      "network_islands":[
-          "swarmh1001",
-          "swarmh1002"
+      "network_islands": [
+        "swarmh1001",
+        "swarmh1002"
       ]
     },
     {
       "node_type": "swarma",
       "config_order": 2,
-      "node_range": "swarma[1001-1005]",
+      "node_range": "[1001-1005]",
       "num_nodes": 5,
       "physical_cpus_per_node": 2,
       "cores_per_physical_cpu": 24,
@@ -86,15 +86,15 @@
         "ram": "ddr5",
         "dimm_size_GB": 32
       },
-      "network_islands":[
-          "swarma[1001,1003,1005]",
-          "swarma[1002,1004]"
+      "network_islands": [
+        "swarma[1001,1003,1005]",
+        "swarma[1002,1004]"
       ]
     },
     {
       "node_type": "rose",
       "config_order": 3,
-      "node_range": "rose[01-13]",
+      "node_range": "[01-13]",
       "num_nodes": 13,
       "physical_cpus_per_node": 2,
       "cores_per_physical_cpu": 24,
@@ -109,15 +109,15 @@
         "ram": "ddr5",
         "dimm_size_GB": 32
       },
-      "network_islands":[
-          "rose[01,03,05,07,09,11,13]",
-          "rose[02,04,06,08,10,12]"
+      "network_islands": [
+        "rose[01,03,05,07,09,11,13]",
+        "rose[02,04,06,08,10,12]"
       ]
     },
     {
       "node_type": "ecsai",
       "config_order": 4,
-      "node_range": "ecsai[01-09]",
+      "node_range": "[01-09]",
       "num_nodes": 9,
       "physical_cpus_per_node": 4,
       "cores_per_physical_cpu": 24,
@@ -132,15 +132,15 @@
         "ram": "ddr5",
         "dimm_size_GB": 32
       },
-      "network_islands":[
-          "ecsai[01,03,05,08]",
-          "ecsai[02,04,06,07,09]"
+      "network_islands": [
+        "ecsai[01,03,05,08]",
+        "ecsai[02,04,06,07,09]"
       ]
     },
     {
       "node_type": "cotton",
       "config_order": 5,
-      "node_range": "cotton[01-02]",
+      "node_range": "[01-02]",
       "num_nodes": 2,
       "physical_cpus_per_node": 2,
       "cores_per_physical_cpu": 24,
@@ -155,14 +155,14 @@
         "ram": "ddr5",
         "dimm_size_GB": 32
       },
-      "network_islands":[
-          "cotton[01,02]"
+      "network_islands": [
+        "cotton[01,02]"
       ]
     },
     {
       "node_type": "coral",
       "config_order": 6,
-      "node_range": "coral[01]",
+      "node_range": "[01]",
       "num_nodes": 1,
       "physical_cpus_per_node": 2,
       "cores_per_physical_cpu": 24,
@@ -177,14 +177,14 @@
         "ram": "ddr5",
         "dimm_size_GB": 32
       },
-      "network_islands":[
-          "coral01"
+      "network_islands": [
+        "coral01"
       ]
     },
     {
       "node_type": "blossom",
       "config_order": 7,
-      "node_range": "blossom[01-04]",
+      "node_range": "[01-04]",
       "num_nodes": 4,
       "physical_cpus_per_node": 2,
       "cores_per_physical_cpu": 24,
@@ -199,14 +199,14 @@
         "ram": "ddr5",
         "dimm_size_GB": 32
       },
-      "network_islands":[
+      "network_islands": [
         "blossom[01-04]"
       ]
     },
     {
       "node_type": "cherry",
       "config_order": 8,
-      "node_range": "cherry[01]",
+      "node_range": "[01]",
       "num_nodes": 1,
       "physical_cpus_per_node": 2,
       "cores_per_physical_cpu": 64,
@@ -221,14 +221,14 @@
         "ram": "ddr5",
         "dimm_size_GB": 32
       },
-      "network_islands":[
+      "network_islands": [
         "cherry01"
       ]
     },
     {
       "node_type": "flamingo",
       "config_order": 9,
-      "node_range": "flamingo[01-02]",
+      "node_range": "[01-02]",
       "num_nodes": 2,
       "physical_cpus_per_node": 2,
       "cores_per_physical_cpu": 24,
@@ -243,7 +243,7 @@
         "ram": "ddr5",
         "dimm_size_GB": 32
       },
-      "network_islands":[
+      "network_islands": [
         "flamingo[01-02]"
       ]
     }
