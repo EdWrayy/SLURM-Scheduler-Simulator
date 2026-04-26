@@ -35,7 +35,7 @@ def single_node_utilisation(jobs: pd.DataFrame, nodes_config_path: str) -> None:
 
     for _, row in single.iterrows():
         raw = row.get("real_node_selection")
-        if raw is None or (isinstance(raw, float) and pd.isna(raw)):
+        if pd.isna(raw):
             skipped += 1
             continue
         try:

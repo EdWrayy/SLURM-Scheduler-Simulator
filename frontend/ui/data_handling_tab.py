@@ -451,12 +451,9 @@ class DataHandlingTab(QWidget):
             )
             return
 
-        config = self._load_conversion_config()
-        nodes_config_path = config.get("nodes_config_file", "")
-        if not nodes_config_path:
-            nodes_config_path = str(
-                Path(__file__).resolve().parents[2] / "backend" / "slurm_simulator" / "nodes.json"
-            )
+        nodes_config_path = str(
+            Path(__file__).resolve().parents[2] / "backend" / "slurm_simulator" / "nodes.json"
+        )
 
         output_file = str(Path(output_dir) / "resource_weights.json")
 

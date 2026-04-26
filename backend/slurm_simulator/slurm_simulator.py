@@ -131,10 +131,7 @@ class NodeSelectionStrategy:
 
         self.family_weights: dict[str, tuple[float, float, float]] = {}
         for node_type, w in (family_weights or {}).items():
-            if isinstance(w, dict):
-                self.family_weights[node_type] = (w["cpu"], w["gpu"], w["memory"])
-            else:
-                self.family_weights[node_type] = tuple(w)
+            self.family_weights[node_type] = (w["cpu"], w["gpu"], w["memory"])
 
 
     

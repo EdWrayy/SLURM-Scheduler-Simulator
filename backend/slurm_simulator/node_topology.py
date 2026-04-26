@@ -114,6 +114,10 @@ def create_nodes(config, node_configs):
 
 
 def expand_island_to_node_names(island_str):
+    """
+    Parse island node list notation into node names
+    Can handle ranges, lists and single values
+    """
     match = re.fullmatch(r"([a-zA-Z]+\d*)\[([^\]]+)\]", island_str)
     if match is None:
         return {island_str}
@@ -133,12 +137,17 @@ def expand_island_to_node_names(island_str):
 
 
 def expand_node_names_from_range(node_type, node_range, num_nodes):
-    pattern = rf"{re.escape(node_type)}\[(\d+)(?:-(\d+))?\]"
+    """
+    Parse range notation into start and end values
+    Create a of given node type for each number in the range
+    Handle any invalid configs
+    """
+    pattern = r"\[(\d+)(?:-(\d+))?\]"
     match = re.fullmatch(pattern, str(node_range))
     if match is None:
         raise ValueError(
             f"Invalid node_range '{node_range}' for node_type '{node_type}'. "
-            "Expected format like 'ruby[001-074]' or 'coral[01]'."
+            "Expected format like '[001-074]' or '[01]'."
         )
 
     start_str = match.group(1)

@@ -1,7 +1,7 @@
 import pandas as pd
 
 from .slurm_simulator import SlurmSimulation
-from .nodes_config import resolve_node_configs
+from .nodes_config import load_nodes_config
 from .strategy_factory import get_strategy_instance
 from .node_topology import create_nodes, print_simulation_configuration
 from .output_storage import setup_output_paths, save_monthly_data
@@ -15,7 +15,7 @@ from .event_processing import (
 
 
 def run_simulation(config):
-    node_configs = resolve_node_configs(config)
+    node_configs = load_nodes_config(config["nodes_config"])
     nodes, node_type_by_name, island_groups = create_nodes(config, node_configs)
     print_simulation_configuration(config, node_configs, nodes, node_type_by_name)
 

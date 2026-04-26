@@ -51,7 +51,7 @@ def filter_to_node_family(parquet_path: str, family: str, output_dir: str, outpu
     matching_job_ids = set()
     for _, row in starts.iterrows():
         raw = row.get("real_node_selection")
-        if raw is None or (isinstance(raw, float) and pd.isna(raw)):
+        if pd.isna(raw):
             continue
         try:
             nodes = ast.literal_eval(str(raw))

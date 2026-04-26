@@ -55,7 +55,7 @@ def compute_resource_weights(parquet_path: str, nodes_config_path: str) -> dict:
 
     for _, row in jobs.iterrows():
         raw = row.get("allowed_node_types")
-        if raw is None or (isinstance(raw, float) and pd.isna(raw)):
+        if pd.isna(raw):
             continue
 
         try:

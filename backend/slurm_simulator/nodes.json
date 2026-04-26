@@ -3,7 +3,7 @@
     {
       "node_type": "ruby",
       "config_order": 0,
-      "node_range": "ruby[001-074]",
+      "node_range": "[001-074]",
       "num_nodes": 74,
       "physical_cpus_per_node": 2,
       "cores_per_physical_cpu": 32,
@@ -26,7 +26,7 @@
     {
       "node_type": "ruby",
       "config_order": 0,
-      "node_range": "ruby[075-090]",
+      "node_range": "[075-090]",
       "num_nodes": 16,
       "physical_cpus_per_node": 2,
       "cores_per_physical_cpu": 32,
@@ -48,7 +48,7 @@
     {
       "node_type": "swarmh",
       "config_order": 1,
-      "node_range": "swarmh[1001-1002]",
+      "node_range": "[1001-1002]",
       "num_nodes": 2,
       "physical_cpus_per_node": 2,
       "cores_per_physical_cpu": 48,
@@ -71,7 +71,7 @@
     {
       "node_type": "swarma",
       "config_order": 2,
-      "node_range": "swarma[1001-1005]",
+      "node_range": "[1001-1005]",
       "num_nodes": 5,
       "physical_cpus_per_node": 2,
       "cores_per_physical_cpu": 24,
@@ -94,7 +94,7 @@
     {
       "node_type": "rose",
       "config_order": 3,
-      "node_range": "rose[01-13]",
+      "node_range": "[01-13]",
       "num_nodes": 13,
       "physical_cpus_per_node": 2,
       "cores_per_physical_cpu": 24,
@@ -117,7 +117,7 @@
     {
       "node_type": "ecsai",
       "config_order": 4,
-      "node_range": "ecsai[01-09]",
+      "node_range": "[01-09]",
       "num_nodes": 9,
       "physical_cpus_per_node": 4,
       "cores_per_physical_cpu": 24,
@@ -140,7 +140,7 @@
     {
       "node_type": "cotton",
       "config_order": 5,
-      "node_range": "cotton[01-02]",
+      "node_range": "[01-02]",
       "num_nodes": 2,
       "physical_cpus_per_node": 2,
       "cores_per_physical_cpu": 24,
@@ -162,7 +162,7 @@
     {
       "node_type": "coral",
       "config_order": 6,
-      "node_range": "coral[01]",
+      "node_range": "[01]",
       "num_nodes": 1,
       "physical_cpus_per_node": 2,
       "cores_per_physical_cpu": 24,
@@ -184,7 +184,7 @@
     {
       "node_type": "blossom",
       "config_order": 7,
-      "node_range": "blossom[01-04]",
+      "node_range": "[01-04]",
       "num_nodes": 4,
       "physical_cpus_per_node": 2,
       "cores_per_physical_cpu": 24,
@@ -206,7 +206,7 @@
     {
       "node_type": "cherry",
       "config_order": 8,
-      "node_range": "cherry[01]",
+      "node_range": "[01]",
       "num_nodes": 1,
       "physical_cpus_per_node": 2,
       "cores_per_physical_cpu": 64,
@@ -228,7 +228,7 @@
     {
       "node_type": "flamingo",
       "config_order": 9,
-      "node_range": "flamingo[01-02]",
+      "node_range": "[01-02]",
       "num_nodes": 2,
       "physical_cpus_per_node": 2,
       "cores_per_physical_cpu": 24,
