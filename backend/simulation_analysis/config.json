@@ -1,7 +1,7 @@
 {
-  "input_events_directory": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/root/simulation/LinearWithSleepPowerModel/CopyRealNodeSelection/events",
-  "input_nodes_directory": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/root/simulation/LinearWithSleepPowerModel/CopyRealNodeSelection/nodes",
-  "output_report_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\root\\simulation_analysis\\Copy_Real_Single_Only",
-  "baseline_total_energy_kwh": 500916.048,
-  "ui_output_name": "Copy_Real_Single_Only"
+  "input_events_directory": "C:/Users/edjwr/Desktop/Project Demo/Simulator Outputs/simulation/LinearWithSleepPowerModel/NaiveFeasible/events",
+  "input_nodes_directory": "C:/Users/edjwr/Desktop/Project Demo/Simulator Outputs/simulation/LinearWithSleepPowerModel/NaiveFeasible/nodes",
+  "output_report_directory": "C:\\Users\\edjwr\\Desktop\\Project Demo\\Simulator Outputs\\simulation_analysis\\NaiveFirstFit_WithSleep",
+  "baseline_total_energy_kwh": 640696.9,
+  "ui_output_name": "NaiveFirstFit_WithSleep"
 }

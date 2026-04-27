@@ -52,6 +52,13 @@ class MetaAnalysisTab(QWidget):
         self.output_name_input.editingFinished.connect(self._save_output_name)
         config_layout.addRow("Output Name:", self.output_name_input)
 
+        self.baseline_name_input = QLineEdit(
+            str(self.meta_config.get("baseline_name", "Naive_Feasible"))
+        )
+        self.baseline_name_input.setPlaceholderText("e.g. Naive_Feasible")
+        self.baseline_name_input.editingFinished.connect(self._save_baseline_name)
+        config_layout.addRow("Baseline Filename:", self.baseline_name_input)
+
         self.meta_analysis_output_directory = QLineEdit("")
         self.meta_analysis_output_directory.setReadOnly(True)
         config_layout.addRow("Output Directory:", self.meta_analysis_output_directory)
@@ -88,6 +95,9 @@ class MetaAnalysisTab(QWidget):
         self.output_name_input.setText(name)
         self._set_config_value("ui_output_name", name)
         self._refresh_output_directory()
+
+    def _save_baseline_name(self) -> None:
+        self._set_config_value("baseline_name", self.baseline_name_input.text().strip())
 
     def _run_meta_analysis(self) -> None:
         self._save_input_directory()

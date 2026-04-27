@@ -2,16 +2,16 @@
   "input_events": "C:/Users/edjwr/Documents/Part 3 Project/Iridis X Data/Simulation Input Parquet Files/April-April-Single-Node-Only.parquet",
   "output_events": "entire_history_output_events.parquet",
   "output_nodes": "entire_history_output_nodes.parquet",
-  "output_events_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\root\\simulation\\LinearWithSleepPowerModel\\CopyRealNodeSelection\\events",
-  "output_nodes_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\root\\simulation\\LinearWithSleepPowerModel\\CopyRealNodeSelection\\nodes",
-  "output_debug_directory": "C:\\Users\\edjwr\\Documents\\Part 3 Project\\Iridis X Data\\root\\simulation\\LinearWithSleepPowerModel\\CopyRealNodeSelection\\debug",
+  "output_events_directory": "C:\\Users\\edjwr\\Desktop\\Project Demo\\Simulator Outputs\\simulation\\LinearWithSleepPowerModel\\NaiveFeasible\\events",
+  "output_nodes_directory": "C:\\Users\\edjwr\\Desktop\\Project Demo\\Simulator Outputs\\simulation\\LinearWithSleepPowerModel\\NaiveFeasible\\nodes",
+  "output_debug_directory": "C:\\Users\\edjwr\\Desktop\\Project Demo\\Simulator Outputs\\simulation\\LinearWithSleepPowerModel\\NaiveFeasible\\debug",
   "enable_debug_output": true,
-  "node_selection_strategy": "CopyRealNodeSelection",
+  "node_selection_strategy": "NaiveFeasible",
   "resource_distribution_strategy": "EvenSplit",
   "power_model": "LinearWithSleepPowerModel",
   "power_constants_config": "power_constants.json",
   "nodes_config": "nodes.json",
-  "ui_nodes_json_source": "C:\\Users\\edjwr\\Documents\\GitHub\\SLURM-Scheduler-Simulator\\presets\\iridix_x_2025\\nodes.json",
-  "ui_power_json_source": "C:\\Users\\edjwr\\Documents\\GitHub\\SLURM-Scheduler-Simulator\\backend\\slurm_simulator\\power_constants.json",
-  "ui_weights_json_source": "C:\\Users\\edjwr\\Documents\\GitHub\\SLURM-Scheduler-Simulator\\backend\\slurm_simulator\\resource_weights.json"
+  "ui_nodes_json_source": "C:\\Users\\edjwr\\Desktop\\Project Demo\\Simulator Inputs\\nodes.json",
+  "ui_power_json_source": "C:\\Users\\edjwr\\Desktop\\Project Demo\\Simulator Inputs\\power_constants.json",
+  "ui_weights_json_source": "C:\\Users\\edjwr\\Desktop\\Project Demo\\Simulator Inputs\\resource_weights.json"
 }

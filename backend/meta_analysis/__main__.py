@@ -9,6 +9,7 @@ from backend.common.config import load_config
 def main():
     config = load_config(Path(__file__).with_name("config.json"))
     include_keys, higher_is_better_set, pareto_x, pareto_y = parse_config_lists(config)
+    baseline_name = config.get("baseline_name", "Naive_Feasible")
 
     reports = load_reports(config["input_directory"])
     df = build_dataframe(reports, include_keys)
@@ -41,7 +42,7 @@ def main():
         filename="active_nodes_vs_dropped_work.png",
     )
 
-    table_path = plot_comparison_table(df, plots_dir)
+    table_path = plot_comparison_table(df, plots_dir, baseline_name=baseline_name)
 
     print("Saved rankings:", rankings_path)
     print("Saved energy savings vs dropped work plot:", pareto_path)
